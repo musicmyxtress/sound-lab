@@ -2,10 +2,11 @@
 //
 // Written one sample at a time on purpose: this is the code that moves to
 // C++ when the synth becomes a VST, so it avoids browser-only shortcuts like
-// OscillatorNode. Three parts, mirroring a plugin inside a host:
-//   Sequencer - stands in for the DAW: sends note on / note off.
-//   Voice     - one sounding note: oscillator + a fixed click-free envelope.
-//   Synth     - the plugin: owns the voices and the parameters.
+// OscillatorNode. Two parts, mirroring a plugin inside a host:
+//   Voice - one sounding note: oscillator + a fixed click-free envelope.
+//   Synth - the plugin: owns the voices and the parameters.
+// The shared scale player (lab/player.js) plays the DAW's part and calls
+// noteOn, noteOff, setParam and render - the same contract a VST has.
 
 const WAVES = ['sine', 'triangle', 'saw', 'square'];
 
@@ -79,7 +80,7 @@ class Synth {
     v.start(note, ++this.counter);
   }
   noteOff(note) { for (const v of this.voices) if (v.note === note && v.stage !== 'release') v.stop(); }
-  allOff() { for (const v of this.voices) v.stop(); }
+  setParam(id, value) { if (id in this.params) this.params[id] = value; }
   render() {
     const wave = WAVES[this.params.wave] || 'saw';
     let sum = 0;
@@ -92,67 +93,4 @@ class Synth {
   }
 }
 
-// C major up and back down; each step plays the note and the octave above.
-const SCALE = [0, 2, 4, 5, 7, 9, 11, 12];
-const PATTERN = [0, 1, 2, 3, 4, 5, 6, 7, 6, 5, 4, 3, 2, 1];
-
-class Sequencer {
-  constructor(sampleRate, synth) {
-    this.sr = sampleRate;
-    this.synth = synth;
-    this.playing = false;
-    this.tempo = 100;   // steps per minute
-    this.length = 80;   // note length, percent of a step
-    this.octave = 3;    // C3 = MIDI 48
-    this.pos = 0;
-    this.sample = 0;
-    this.held = [];
-  }
-  start() { this.playing = true; this.pos = 0; this.sample = 0; }
-  stop() { this.playing = false; this.release(); }
-  release() { for (const n of this.held) this.synth.noteOff(n); this.held = []; }
-  tick() {
-    if (!this.playing) return;
-    const stepLen = Math.round(this.sr * 60 / this.tempo);
-    if (this.sample === 0) {
-      const root = 12 * (this.octave + 1) + SCALE[PATTERN[this.pos]];
-      this.held = [root, root + 12];
-      for (const n of this.held) this.synth.noteOn(n);
-    }
-    if (this.sample === Math.round(stepLen * this.length / 100)) this.release();
-    this.sample++;
-    if (this.sample >= stepLen) {
-      this.release();
-      this.sample = 0;
-      this.pos = (this.pos + 1) % PATTERN.length;
-    }
-  }
-}
-
-class SynthLabProcessor extends AudioWorkletProcessor {
-  constructor() {
-    super();
-    this.synth = new Synth(sampleRate);
-    this.seq = new Sequencer(sampleRate, this.synth);
-    this.port.onmessage = ({ data }) => {
-      if (data.type === 'play') this.seq.start();
-      else if (data.type === 'stop') this.seq.stop();
-      else if (data.type === 'param') {
-        if (data.id in this.synth.params) this.synth.params[data.id] = data.value;
-        else if (data.id in this.seq) this.seq[data.id] = data.value;
-      }
-    };
-  }
-  process(_inputs, outputs) {
-    const out = outputs[0];
-    const n = out[0].length;
-    for (let i = 0; i < n; i++) {
-      this.seq.tick();
-      const s = this.synth.render();
-      for (const ch of out) ch[i] = s;
-    }
-    return true;
-  }
-}
-
-registerProcessor('synth-lab', SynthLabProcessor);
+globalThis.createSynth = sr => new Synth(sr);

@@ -1,6 +1,20 @@
-// Shared sound-lab page builder. Each lab supplies a list of settings and an
-// engine file; this builds the accessible sliders, Play button, step-size
-// switch and saved spots, so a new idea is one small file, not a new page.
+// Shared sound-lab page builder. Each lab supplies its synth's settings and an
+// engine file; this adds the shared scale player and builds the accessible
+// sliders, Play button, step-size switch and saved spots, so a new idea is
+// one small file, not a new page.
+
+// The scale player is the same in every lab; only the synth changes.
+const PLAYER_URL = new URL('./player.js?v=2', import.meta.url).href;
+const PLAYER_GROUP = {
+  name: 'Scale player',
+  player: true,
+  params: [
+    { id: 'tempo', label: 'Speed', min: 30, max: 240, fine: 5, coarse: 30, default: 100, format: v => `${v} notes per minute` },
+    { id: 'length', label: 'Note length', min: 10, max: 100, fine: 5, coarse: 20, default: 80, format: v => `${v} percent` },
+    { id: 'octave', label: 'Scale octave', min: 1, max: 5, fine: 1, coarse: 1, default: 3, format: v => `C${v}` },
+  ],
+};
+const NOTES = 'Play loops a C major scale up and down, each note doubled an octave above.';
 
 const $ = (tag, props = {}, ...kids) => {
   const el = Object.assign(document.createElement(tag), props);
@@ -25,8 +39,11 @@ function unmuteIOS() {
   a.play().catch(() => {});
 }
 
-export function createLab({ title, version, engineUrl, processor, groups, notes }) {
-  const key = `sound-lab:${processor}`;
+export function createLab({ id, title, version, engineUrl, groups: synthGroups }) {
+  const key = `sound-lab:${id}`;
+  const groups = [...synthGroups, PLAYER_GROUP];
+  const playerIds = new Set(PLAYER_GROUP.params.map(p => p.id));
+  const msg = (p, value) => ({ type: playerIds.has(p.id) ? 'player' : 'param', id: p.id, value });
   const all = groups.flatMap(g => g.params);
   const values = {};
   const saved = JSON.parse(localStorage.getItem(key + ':values') || '{}');
@@ -44,17 +61,19 @@ export function createLab({ title, version, engineUrl, processor, groups, notes 
   const main = document.getElementById('lab');
   document.title = `${title} lab`;
   main.append($('h1', { textContent: `${title}, version ${version}` }));
-  if (notes) main.append($('p', { textContent: notes }));
+  main.append($('p', { textContent: NOTES }));
 
   const play = $('button', { className: 'big', textContent: 'Play' });
   play.onclick = async () => {
     if (!ctx) {
       unmuteIOS();
       ctx = new AudioContext({ latencyHint: 'interactive' });
+      // The synth loads first and leaves createSynth for the player to find.
       await ctx.audioWorklet.addModule(engineUrl);
-      node = new AudioWorkletNode(ctx, processor, { outputChannelCount: [2] });
+      await ctx.audioWorklet.addModule(PLAYER_URL);
+      node = new AudioWorkletNode(ctx, 'sound-lab', { outputChannelCount: [2] });
       node.connect(ctx.destination);
-      for (const p of all) send({ type: 'param', id: p.id, value: values[p.id] });
+      for (const p of all) send(msg(p, values[p.id]));
     }
     await ctx.resume();
     playing = !playing;
@@ -78,7 +97,7 @@ export function createLab({ title, version, engineUrl, processor, groups, notes 
     const text = fmt(p, v);
     el.setAttribute('aria-valuetext', text);
     el.nextElementSibling.textContent = text;
-    send({ type: 'param', id: p.id, value: v });
+    send(msg(p, v));
     localStorage.setItem(key + ':values', JSON.stringify(values));
   };
 

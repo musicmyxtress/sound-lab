@@ -19,6 +19,12 @@ control that VoiceOver can step through.
 - `lab/lab.js` builds a lab page from the synth's settings list: sliders,
   Play, a fine/coarse step switch, and saved spots. A lab page passes a
   stable `id` (it keys saved spots and slider positions in localStorage).
+  A setting with `showIf(values)` hides while that is false (Tonic's rule: a
+  filter that is off shows only its type), keeps its value, is left out of
+  saved-spot descriptions, and the page announces controls shown or hidden.
+- The synth's filter is Tonic's VoiceFilter (Simper SVF, k = 2 - 1.96 x
+  resonance, cutoff as a note, linear filter envelope in semitones) so a lab
+  sound carries over to Tonic. No velocity: the scale player has none.
 - "Copy all spots" puts readable slider positions on the clipboard; Blake
   pastes them to Claude to say where he landed.
 

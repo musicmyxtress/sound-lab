@@ -57,11 +57,39 @@ export function createLab({ id, title, version, engineUrl, groups: synthGroups }
   let ctx = null, node = null, playing = false, coarse = false;
   const send = msg => node && node.port.postMessage(msg);
   const sliders = {};
+  const rows = {};
+  // A setting with showIf(values) appears only when that says so (Tonic's
+  // rule: a filter that is off shows only its type). Hidden settings keep
+  // their values, so switching back on brings everything back as it was.
+  const shows = (p, vals) => !p.showIf || p.showIf(vals);
+  const announcer = $('p', { className: 'sr-only', ariaLive: 'polite' });
+  let announceTimer = 0;
+  const announce = text => {
+    // Wait for VoiceOver to finish speaking the slider's new value first.
+    clearTimeout(announceTimer);
+    announceTimer = setTimeout(() => { announcer.textContent = ''; announcer.textContent = text; }, 700);
+  };
+  const updateVisibility = changed => {
+    for (const g of groups) {
+      const hideable = g.params.filter(p => p.showIf);
+      if (!hideable.length) continue;
+      let shown = 0, flipped = false;
+      for (const p of hideable) {
+        const show = shows(p, values);
+        if (rows[p.id].hidden === show) flipped = true;
+        rows[p.id].hidden = !show;
+        if (show) shown++;
+      }
+      if (flipped && changed) {
+        announce(shown ? `${shown} ${g.name.toLowerCase()} controls shown below` : `${g.name} controls hidden`);
+      }
+    }
+  };
 
   const main = document.getElementById('lab');
   document.title = `${title} lab`;
   main.append($('h1', { textContent: `${title}, version ${version}` }));
-  main.append($('p', { textContent: NOTES }));
+  main.append($('p', { textContent: NOTES }), announcer);
 
   const play = $('button', { className: 'big', textContent: 'Play' });
   play.onclick = async () => {
@@ -99,6 +127,7 @@ export function createLab({ id, title, version, engineUrl, groups: synthGroups }
     el.nextElementSibling.textContent = text;
     send(msg(p, v));
     localStorage.setItem(key + ':values', JSON.stringify(values));
+    if (fromSlider !== 'building') updateVisibility(fromSlider === true);
   };
 
   for (const g of groups) {
@@ -110,17 +139,19 @@ export function createLab({ id, title, version, engineUrl, groups: synthGroups }
       sliders[p.id] = input;
       // The visible value is hidden from VoiceOver; the slider already says it.
       const shown = $('span', { className: 'value', ariaHidden: 'true' });
-      sec.append($('div', { className: 'param' }, $('label', { htmlFor: id, textContent: p.label }), input, shown));
-      setValue(p, values[p.id]);
+      rows[p.id] = $('div', { className: 'param' }, $('label', { htmlFor: id, textContent: p.label }), input, shown);
+      sec.append(rows[p.id]);
+      setValue(p, values[p.id], 'building');
     }
     main.append(sec);
   }
+  updateVisibility(false);
 
   // Saved spots: a record of where the sliders were, readable by Claude.
   const spots = JSON.parse(localStorage.getItem(key + ':spots') || '[]');
   const list = $('ol');
   const describe = s => `${s.name} (version ${s.version}): ` +
-    all.filter(p => p.id in s.values).map(p => `${p.label} ${fmt(p, s.values[p.id])}`).join(', ');
+    all.filter(p => p.id in s.values && shows(p, s.values)).map(p => `${p.label} ${fmt(p, s.values[p.id])}`).join(', ');
   const store = () => localStorage.setItem(key + ':spots', JSON.stringify(spots));
   const render = () => {
     list.replaceChildren(...spots.map((s, i) => {

@@ -21,3 +21,4 @@ fieldset input { transform: scale(1.5); margin-right: 0.8rem; }
 .help { font-size: 0.85rem; line-height: 1.4; margin-top: 1.5rem; }
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 [hidden] { display: none !important; }
+h4 { font-size: 1rem; margin: 0.9rem 0 0.2rem; }

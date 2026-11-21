@@ -79,7 +79,13 @@ control that VoiceOver can step through.
   processing steps, like forges. All four on every planet, sometimes a second of one. Sound kinds:
   wood pluck, stone thud, metal FM, fiber breathy noise (learnable by ear), cabins (wood + stone), houses, shopping
   centers (no workers; credits per person), workplaces staffed in material order (placeholder). Pickup speech: "Zate: 3 found. Type:
-  metal." UI says credits, not money. Forges and factories not built yet.
+  metal." UI says credits, not money. Production chain built in v6: gatherers (1 worker), forge/masonry/tailor
+  (2 workers, 2 raw -> 1 bar/brick/cloth per minute), factories (3 workers,
+  one chosen product each, double tap to switch: wires, beams, servos,
+  motors). Workers fill jobs in chain order. Buildings stop and say what
+  they are waiting for. Houses and shopping centers now cost bricks;
+  factories cost bricks and bars. Servos and motors have no use yet. All
+  recipes and costs are PLACEHOLDERs. Goods live in colony.stock as g:*.
 - Field (v5) follows E.X.O.'s rules: the surface is cut into 50 m chunks;
   each chunk's 0-3 clustered materials come from the planet seed plus the
   chunk position, so the world is fixed and endless. Only items within 70 m

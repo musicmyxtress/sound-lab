@@ -10,7 +10,9 @@ const el = (tag, props = {}) => Object.assign(document.createElement(tag), props
 // ---------- tuning (PLACEHOLDER numbers) ----------
 const CENTER_RATE = 1 / 60;        // credits per second, per person, per shopping center
 const PEOPLE = { cabin: 2, house: 4 };
-const MINE_SECONDS = 120;          // one unit per staffed mine per two minutes (hand is faster)
+const MINE_SECONDS = 120;          // one unit per staffed gatherer per two minutes (hand is faster)
+const PROC_SECONDS = 60;           // a staffed forge, masonry or tailor turns 2 raw into 1 good per minute
+const FACTORY_SECONDS = 90;        // a staffed factory makes one batch per minute and a half
 const colonizeCost = n => n === 0 ? 0 : Math.round(100 * 2.5 ** (n - 1));
 const CAP_STEPS = [{ hours: 8, cost: 300 }, { hours: 12, cost: 800 }, { hours: 24, cost: 2000 }];
 const ABUNDANCE_WEIGHT = { plentiful: 5, common: 3, scarce: 1 };
@@ -200,6 +202,91 @@ function mechBuild(clanks) {
   return end + 0.4 - ctx.currentTime;
 }
 
+// ---------- the production chain ----------
+// Gatherers (1 worker) collect raw materials. Processors (2 workers) turn
+// raw into goods. Factories (3 workers) turn goods into parts, one chosen
+// product each. A building stops when it lacks inputs. Workers fill jobs in
+// chain order: gatherers, then processors, then factories.
+const PROCESSORS = {
+  forge:   { label: 'forge',   plural: 'forges',     input: 'metal', output: 'g:bars' },
+  masonry: { label: 'masonry', plural: 'masonries',  input: 'stone', output: 'g:bricks' },
+  tailor:  { label: 'tailor',  plural: 'tailors',    input: 'fiber', output: 'g:cloth' },
+};
+const GOODS = { 'g:bars': 'metal bars', 'g:bricks': 'bricks', 'g:cloth': 'cloth', 'g:wires': 'wires', 'g:beams': 'beams', 'g:servos': 'servos', 'g:motors': 'motors' };
+const ONE = { 'g:bars': 'metal bar', 'g:bricks': 'brick', 'g:cloth': 'cloth', 'g:wires': 'wire', 'g:beams': 'beam', 'g:servos': 'servo', 'g:motors': 'motor' };
+const goodName = (g, n) => n === 1 ? ONE[g] : GOODS[g];
+const PRODUCTS = { // PLACEHOLDER recipes
+  wires:  { input: { 'g:bars': 1 }, output: 'g:wires', makes: 2 },
+  beams:  { input: { 'g:bars': 2 }, output: 'g:beams', makes: 1 },
+  servos: { input: { 'g:bars': 1, 'g:wires': 2 }, output: 'g:servos', makes: 1 },
+  motors: { input: { 'g:bars': 2, 'g:wires': 3, 'g:cloth': 1 }, output: 'g:motors', makes: 1 },
+};
+const PRODUCT_ORDER = Object.keys(PRODUCTS);
+
+// Older saves predate the chain; give them the new fields.
+function migrate(c) {
+  c.proc ??= { forge: 0, masonry: 0, tailor: 0 };
+  c.factories ??= [];
+  c.prog ??= {};
+  if (c.mineProg) { for (const id in c.mineProg) c.prog['mine:' + id] = c.mineProg[id]; delete c.mineProg; }
+  for (const g in GOODS) c.stock[g] ??= 0;
+  c.status ??= {};
+}
+G.colonies.forEach(migrate);
+
+const people = c => c.cabins * PEOPLE.cabin + c.houses * PEOPLE.house;
+function staffing(c) {
+  let free = people(c);
+  const mine = {}, proc = {}, fac = [];
+  for (const m of c.planet.materials) { mine[m.id] = Math.min(c.mines[m.id] || 0, free); free -= mine[m.id]; }
+  for (const k in PROCESSORS) { proc[k] = Math.min(c.proc[k], Math.floor(free / 2)); free -= proc[k] * 2; }
+  for (let i = 0; i < c.factories.length; i++) { fac[i] = free >= 3; if (fac[i]) free -= 3; }
+  return { mine, proc, fac, idle: free };
+}
+const gatherers = c => Object.values(c.mines).reduce((a, b) => a + b, 0);
+const workplaces = c => gatherers(c) + Object.values(c.proc).reduce((a, b) => a + b, 0) + c.factories.length;
+
+// Raw materials of one type can come from any material of that type.
+const typeStock = (c, type) => c.planet.materials.filter(m => m.type === type).reduce((a, m) => a + c.stock[m.id], 0);
+function takeType(c, type, n) {
+  const mats = c.planet.materials.filter(m => m.type === type).sort((x, y) => c.stock[y.id] - c.stock[x.id]);
+  for (const m of mats) { const t = Math.min(n, c.stock[m.id]); c.stock[m.id] -= t; n -= t; }
+}
+
+function simulate(c, dt) {
+  const st = staffing(c);
+  for (let left = dt; left > 0; left -= 10) { // small steps so goods flow down the chain
+    const step = Math.min(10, left);
+    for (const id in st.mine) {
+      const k = 'mine:' + id;
+      c.prog[k] = (c.prog[k] || 0) + st.mine[id] * step / MINE_SECONDS;
+      const whole = Math.floor(c.prog[k]);
+      if (whole) { c.stock[id] += whole; c.prog[k] -= whole; }
+    }
+    for (const k in PROCESSORS) {
+      const P = PROCESSORS[k];
+      c.prog[k] = (c.prog[k] || 0) + st.proc[k] * step / PROC_SECONDS;
+      c.status[k] = st.proc[k] ? 'running' : 'idle';
+      while (c.prog[k] >= 1) {
+        if (typeStock(c, P.input) < 2) { c.prog[k] = 1; c.status[k] = 'waiting for ' + P.input; break; }
+        takeType(c, P.input, 2); c.stock[P.output]++; c.prog[k]--;
+      }
+    }
+    c.factories.forEach((prod, i) => {
+      const R = PRODUCTS[prod], k = 'fac:' + i;
+      if (!st.fac[i]) { c.status[k] = 'needs 3 workers'; return; }
+      c.prog[k] = (c.prog[k] || 0) + step / FACTORY_SECONDS;
+      c.status[k] = 'running';
+      while (c.prog[k] >= 1) {
+        const short = Object.entries(R.input).find(([g, n]) => c.stock[g] < n);
+        if (short) { c.prog[k] = 1; c.status[k] = 'waiting for ' + GOODS[short[0]]; break; }
+        for (const [g, n] of Object.entries(R.input)) c.stock[g] -= n;
+        c.stock[R.output] += R.makes; c.prog[k]--;
+      }
+    });
+  }
+}
+
 // ---------- economy: every colony earns in real time ----------
 // While the page is open this runs every second; after time away the gap is
 // capped at the offline limit, so the same code handles both.
@@ -209,42 +296,32 @@ function tick() {
   G.last = now;
   for (const c of G.colonies) {
     G.money += c.centers * people(c) * CENTER_RATE * dt;
-    const staff = mineStaff(c);
-    for (const id in c.mines) {
-      c.mineProg[id] = (c.mineProg[id] || 0) + staff[id] * dt / MINE_SECONDS;
-      const whole = Math.floor(c.mineProg[id]);
-      if (whole) { c.stock[id] += whole; c.mineProg[id] -= whole; }
-    }
+    if (dt > 0) simulate(c, dt);
   }
 }
-const people = c => c.cabins * PEOPLE.cabin + c.houses * PEOPLE.house;
-// Each workplace needs 1 worker; workers fill them in material order.
-function mineStaff(c) {
-  let free = people(c); const staff = {};
-  for (const m of c.planet.materials) { staff[m.id] = Math.min(c.mines[m.id] || 0, free); free -= staff[m.id]; }
-  return staff;
-}
-const totalMines = c => Object.values(c.mines).reduce((a, b) => a + b, 0);
-const staffedMines = c => Object.values(mineStaff(c)).reduce((a, b) => a + b, 0);
 const money = () => Math.floor(G.money);
-const matName = (c, id) => c.planet.materials.find(m => m.id === id).name;
+const nameOf = (c, id, n) => GOODS[id] ? goodName(id, n) : c.planet.materials.find(m => m.id === id).name;
 
-// Building costs use the planet's own materials, most plentiful first.
+// Costs name a type; the planet's most plentiful material of that type pays.
+// PLACEHOLDER amounts. Bigger buildings use goods instead of piles of raw.
 function costs(c) {
-  // Costs name a type; the planet's most plentiful material of that type pays.
   const of = type => c.planet.materials.filter(m => m.type === type)
     .sort((a, b) => ABUNDANCE_WEIGHT[b.abundance] - ABUNDANCE_WEIGHT[a.abundance])[0].id;
-  const wood = of('wood'), stone = of('stone'), ore = of('metal');
+  const wood = of('wood'), stone = of('stone');
   const list = [
-    { key: 'cabin', label: 'cabin', cost: { [wood]: 4, [stone]: 2 } },
-    { key: 'house', label: 'house', cost: { [wood]: 6, [stone]: 6 } },
-    { key: 'center', label: 'shopping center', cost: { [wood]: 6, [stone]: 8, [ore]: 2 } },
+    { key: 'cabin', label: 'cabin', group: 'Homes', cost: { [wood]: 4, [stone]: 2 } },
+    { key: 'house', label: 'house', group: 'Homes', cost: { [wood]: 4, 'g:bricks': 4 } },
+    { key: 'center', label: 'shopping center', group: 'Homes', cost: { [wood]: 4, 'g:bricks': 6 } },
   ];
   for (const m of c.planet.materials)
-    list.push({ key: 'mine:' + m.id, label: `${m.name} ${WORKPLACE[m.type]}`, cost: { [wood]: 4, [stone]: 4 } });
+    list.push({ key: 'mine:' + m.id, label: `${m.name} ${WORKPLACE[m.type]}`, group: 'Gathering', cost: { [wood]: 4, [stone]: 4 } });
+  list.push({ key: 'proc:forge', label: 'forge', group: 'Processing', cost: { [wood]: 4, [stone]: 8 } });
+  list.push({ key: 'proc:masonry', label: 'masonry', group: 'Processing', cost: { [wood]: 6, [stone]: 4 } });
+  list.push({ key: 'proc:tailor', label: 'tailor', group: 'Processing', cost: { [wood]: 6, [stone]: 4 } });
+  list.push({ key: 'factory', label: 'factory', group: 'Processing', cost: { 'g:bricks': 6, 'g:bars': 4 } });
   return list;
 }
-const costText = (c, cost) => Object.entries(cost).map(([id, n]) => `${n} ${matName(c, id)}`).join(', ');
+const costText = (c, cost) => Object.entries(cost).map(([id, n]) => `${n} ${nameOf(c, id, n)}`).join(', ');
 const affordable = (c, cost) => Object.entries(cost).every(([id, n]) => c.stock[id] >= n);
 
 // ---------- screens ----------
@@ -290,9 +367,18 @@ const RENDER = {
     $('colonyName').textContent = `${c.planet.name} colony`;
     const st = $('stock'); st.replaceChildren();
     for (const m of c.planet.materials) st.append(el('li', { id: 'stock-' + m.id }));
+    const gd = $('goods'); gd.replaceChildren();
+    gd.append(el('li', { id: 'goods-none', textContent: 'None yet' }));
+    for (const g in GOODS) gd.append(el('li', { id: 'goods-' + g.slice(2) }));
+    const pr = $('production'); pr.replaceChildren();
+    pr.append(el('li', { id: 'prod-none', textContent: 'Nothing built yet' }));
+    for (const k in PROCESSORS) pr.append(el('li', { id: 'prod-' + k }));
+    renderFactories(c);
     const bd = $('build'); bd.replaceChildren();
+    let group = '';
     for (const item of costs(c)) {
-      const b = el('button', { id: 'build-' + item.key });
+      if (item.group !== group) { group = item.group; bd.append(el('h4', { textContent: group })); }
+      const b = el('button', { id: 'build-' + item.key.replace(':', '-') });
       b.addEventListener('click', () => build(c, item));
       bd.append(b);
     }
@@ -301,7 +387,7 @@ const RENDER = {
   colonies() {
     const list = $('colonyList'); list.replaceChildren();
     G.colonies.forEach((c, i) => {
-      const b = el('button', { textContent: `${c.planet.name}${i === G.current ? ', current' : ''}: ${count(people(c), 'colonist')}, ${count(c.centers, 'shopping center')}, ${count(totalMines(c), 'workplace')}` });
+      const b = el('button', { textContent: `${c.planet.name}${i === G.current ? ', current' : ''}: ${count(people(c), 'colonist')}, ${count(c.centers, 'shopping center')}, ${count(workplaces(c), 'workplace')}` });
       b.addEventListener('click', () => { G.current = i; save(); show('colony'); });
       list.append(b);
     });
@@ -313,20 +399,58 @@ const RENDER = {
   },
 };
 
+// Factories: one button each, which switches what it makes. Rebuilt only
+// when a factory is added, never while ticking.
+function renderFactories(c) {
+  const box = $('factories'); box.replaceChildren();
+  $('factoriesHeading').hidden = !c.factories.length;
+  c.factories.forEach((prod, i) => {
+    const b = el('button', { id: 'fac-' + i });
+    b.addEventListener('click', () => {
+      c.factories[i] = PRODUCT_ORDER[(PRODUCT_ORDER.indexOf(c.factories[i]) + 1) % PRODUCT_ORDER.length];
+      c.prog['fac:' + i] = 0; save(); refreshColony();
+      say(`Factory ${i + 1} now makes ${c.factories[i]}.`);
+    });
+    box.append(b);
+  });
+}
+const recipeText = prod => {
+  const R = PRODUCTS[prod];
+  return `${Object.entries(R.input).map(([g, n]) => `${n} ${goodName(g, n)}`).join(', ')} into ${R.makes} ${goodName(R.output, R.makes)}`;
+};
+
 // Live numbers update text in place, never rebuilding the buttons, so
-// VoiceOver focus is never thrown off a button while money ticks in.
+// VoiceOver focus is never thrown off a button while credits tick in.
+function setText(id, text) { const e = $(id); if (e && e.textContent !== text) e.textContent = text; }
 function refreshColony() {
-  const c = cur();
-  const mineNote = totalMines(c) ? ` ${staffedMines(c)} of ${count(totalMines(c), 'workplace')} staffed.` : '';
-  $('colonyPeople').textContent = `${count(people(c), 'colonist')}: ${count(c.cabins, 'cabin')}, ${count(c.houses, 'house')}. ${count(c.centers, 'shopping center')}.${mineNote} Credits: ${money()}.`;
+  const c = cur(), st = staffing(c), working = people(c) - st.idle;
+  setText('colonyPeople', `${count(people(c), 'colonist')}, ${working} working: ${count(c.cabins, 'cabin')}, ${count(c.houses, 'house')}. ${count(c.centers, 'shopping center')}. Credits: ${money()}.`);
   for (const m of c.planet.materials) {
-    const mines = c.mines[m.id] || 0;
-    $('stock-' + m.id).textContent = `${m.name}, ${m.type}: ${c.stock[m.id]}${mines ? `, ${count(mines, WORKPLACE[m.type])}` : ''}`;
+    const n = c.mines[m.id] || 0, s = st.mine[m.id];
+    setText('stock-' + m.id, `${m.name}, ${m.type}: ${c.stock[m.id]}${n ? `, ${count(n, WORKPLACE[m.type])}${s < n ? `, ${n - s} without workers` : ''}` : ''}`);
   }
+  let anyGoods = false;
+  for (const g in GOODS) {
+    const li = $('goods-' + g.slice(2)); li.hidden = !c.stock[g]; anyGoods ||= !!c.stock[g];
+    setText('goods-' + g.slice(2), `${cap1(GOODS[g])}: ${c.stock[g]}`);
+  }
+  $('goods-none').hidden = anyGoods;
+  let anyProc = false;
+  for (const k in PROCESSORS) {
+    const n = c.proc[k], li = $('prod-' + k); li.hidden = !n; anyProc ||= !!n;
+    if (!n) continue;
+    const s = st.proc[k];
+    const state = !s ? 'needs workers, 2 each' : c.status[k] === 'running' || !c.status[k] ? 'running' : c.status[k];
+    setText('prod-' + k, `${cap1(count(n, PROCESSORS[k].label).replace('masonrys', 'masonries'))}, ${s} staffed: ${state}`);
+  }
+  $('prod-none').hidden = anyProc;
+  c.factories.forEach((prod, i) => {
+    const state = st.fac[i] ? (c.status['fac:' + i] || 'running') : 'needs 3 workers';
+    setText('fac-' + i, `Factory ${i + 1}: makes ${prod}, ${recipeText(prod)}. ${cap1(state)}. Double tap to switch.`);
+  });
   for (const item of costs(c)) {
-    const b = $('build-' + item.key);
-    const label = `Build ${item.label}: ${costText(c, item.cost)}`;
-    if (b.textContent !== label) b.textContent = label;
+    const b = $('build-' + item.key.replace(':', '-'));
+    setText(b.id, `Build ${item.label}: ${costText(c, item.cost)}`);
     b.setAttribute('aria-disabled', !affordable(c, item.cost));
   }
 }
@@ -334,7 +458,7 @@ function refreshColony() {
 function build(c, item) {
   if (!affordable(c, item.cost)) {
     const short = Object.entries(item.cost).filter(([id, n]) => c.stock[id] < n)
-      .map(([id, n]) => `${n - c.stock[id]} more ${matName(c, id)}`).join(', ');
+      .map(([id, n]) => `${n - c.stock[id]} more ${nameOf(c, id, n - c.stock[id])}`).join(', ');
     return say(`Need ${short}.`);
   }
   for (const [id, n] of Object.entries(item.cost)) c.stock[id] -= n;
@@ -344,9 +468,16 @@ function build(c, item) {
   else if (item.key === 'center') {
     c.centers++;
     msg = people(c) ? 'Shopping center built.' : 'Shopping center built. It earns once people live here.';
-  } else {
+  } else if (item.key.startsWith('mine:')) {
     const id = item.key.slice(5); c.mines[id] = (c.mines[id] || 0) + 1;
-    msg = staffedMines(c) < totalMines(c) ? `${cap1(item.label)} built, but it needs a worker. Build a cabin or house.` : `${cap1(item.label)} built.`;
+    msg = staffing(c).mine[id] < c.mines[id] ? `${cap1(item.label)} built, but it needs a worker. Build a cabin or house.` : `${cap1(item.label)} built.`;
+  } else if (item.key.startsWith('proc:')) {
+    const k = item.key.slice(5); c.proc[k]++;
+    msg = staffing(c).proc[k] < c.proc[k] ? `${cap1(item.label)} built, but it needs 2 workers.` : `${cap1(item.label)} built.`;
+  } else {
+    c.factories.push('wires');
+    renderFactories(c);
+    msg = `Factory ${c.factories.length} built, making wires.${staffing(c).fac.at(-1) ? '' : ' It needs 3 workers.'}`;
   }
   save(); refreshColony();
   // The mech builds it: bigger buildings take more clanks. The announcement
@@ -372,7 +503,8 @@ $('colonize').addEventListener('click', () => {
   if (money() < cost) return say(`You need ${cost - money()} more credits.`);
   G.money -= cost; G.founded++;
   const stock = {}; for (const m of scout.materials) stock[m.id] = 0;
-  G.colonies.push({ planet: scout, stock, cabins: 0, houses: 0, centers: 0, mines: {}, mineProg: {} });
+  const c = { planet: scout, stock, cabins: 0, houses: 0, centers: 0, mines: {} };
+  migrate(c); G.colonies.push(c);
   G.current = G.colonies.length - 1;
   save(); show('colony');
 });
@@ -619,7 +751,7 @@ function frame(now) {
   G.colonies.forEach((c, i) => {
     for (const id in c.stock) {
       const got = c.stock[id] - before.stock[i][id];
-      if (got > 0) parts.push(`${got} ${matName(c, id)} on ${c.planet.name}`);
+      if (got > 0) parts.push(`${got} ${nameOf(c, id, got)} on ${c.planet.name}`);
     }
   });
   if (away > 120 && parts.length) {

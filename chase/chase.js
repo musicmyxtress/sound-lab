@@ -14,7 +14,7 @@ const SCALE = [0, 3, 5, 7, 10, 12, 15, 17];
 const $ = id => document.getElementById(id);
 const S = { x: 0, y: 0, h: 0, found: 0, target: null, running: false, mode: 'tilt' };
 window.__chase = S; // for automated checks
-let hold = null; // hold pad state, declared early because setMode clears it
+let hold = null, flick = null; // pad state, declared early because setMode clears it
 
 // ---------- settings ----------
 try { S.mode = localStorage.getItem('chase:mode') || 'tilt'; } catch {}
@@ -23,7 +23,7 @@ for (const r of document.querySelectorAll('input[name=mode]')) {
   r.addEventListener('change', () => { if (r.checked) setMode(r.value, true); });
 }
 function setMode(m, fromUser) {
-  S.mode = m; hold = null;
+  S.mode = m; hold = null; flick = null;
   try { localStorage.setItem('chase:mode', m); } catch {}
   for (const el of document.querySelectorAll('[data-modes]'))
     el.hidden = !el.dataset.modes.split(' ').includes(m);
@@ -226,8 +226,20 @@ pad.addEventListener('pointerdown', e => {
   if (!S.running) return;
   e.preventDefault();
   try { pad.setPointerCapture(e.pointerId); } catch {}
+  if (S.mode === 'steps') { flick = { id: e.pointerId, x: e.clientX, y: e.clientY }; return; }
   hold = { id: e.pointerId, x0: e.clientX, anchorY: e.clientY, dir: 1, dx: 0 };
   dirCue(1);
+});
+// Steps mode on the pad: while held, every 45 px of drag is one silent
+// action - up steps forward, down steps back, left/right turns. Keep holding
+// and keep dragging to take several.
+pad.addEventListener('pointermove', e => {
+  if (!flick || e.pointerId !== flick.id) return;
+  e.preventDefault();
+  const dx = e.clientX - flick.x, dy = e.clientY - flick.y;
+  if (Math.max(Math.abs(dx), Math.abs(dy)) < 45) return;
+  if (Math.abs(dy) >= Math.abs(dx)) doStep(dy < 0 ? 1 : -1); else doTurn(dx > 0 ? 1 : -1);
+  flick.x = e.clientX; flick.y = e.clientY;
 });
 pad.addEventListener('pointermove', e => {
   if (!hold || e.pointerId !== hold.id) return;
@@ -242,7 +254,10 @@ pad.addEventListener('pointermove', e => {
     else if (dy > 0) hold.anchorY = e.clientY;
   }
 });
-const release = e => { if (hold && e.pointerId === hold.id) { hold = null; stopCue(); } };
+const release = e => {
+  if (flick && e.pointerId === flick.id) flick = null;
+  if (hold && e.pointerId === hold.id) { hold = null; stopCue(); }
+};
 pad.addEventListener('pointerup', release);
 pad.addEventListener('pointercancel', release);
 pad.addEventListener('touchmove', e => e.preventDefault(), { passive: false });
@@ -252,10 +267,10 @@ pad.addEventListener('touchmove', e => e.preventDefault(), { passive: false });
 function stepper(el, act) {
   el.addEventListener('input', () => {
     const v = +el.value; if (v === 1 || !S.running) { el.value = 1; return; }
-    // The footstep or turn tick says what happened; a lone period gives
-    // VoiceOver nothing to speak after each swipe (version 2 experiment).
-    act(v === 2 ? 1 : -1);
-    el.setAttribute('aria-valuetext', '.');
+    // Version 2 tried a lone period here to silence VoiceOver; it made focus
+    // jump on Blake's iPhone, so the slider speaks a real word. The pad is
+    // the silent way to step.
+    el.setAttribute('aria-valuetext', act(v === 2 ? 1 : -1));
     el.value = 1;
   });
 }

@@ -30,7 +30,7 @@
 </head>
 <body>
 <main>
-<h1>Chase lab, version 3</h1>
+<h1>Chase lab, version 4</h1>
 <button id="start">Start</button>
 <p id="status">Found 0</p>
 
@@ -46,12 +46,12 @@
   <button id="recenter">Recenter</button>
 </div>
 
-<div id="pad" data-modes="hold compass" hidden role="button" tabindex="0"
+<div id="pad" data-modes="hold compass steps" hidden role="button" tabindex="0"
      aria-label="Movement pad">Movement pad</div>
 
 <div data-modes="steps" hidden>
-  <label class="slider">Walk <input id="walkSlider" type="range" min="0" max="2" step="1" value="1" aria-valuetext="."></label>
-  <label class="slider">Turn <input id="turnSlider" type="range" min="0" max="2" step="1" value="1" aria-valuetext="."></label>
+  <label class="slider">Walk <input id="walkSlider" type="range" min="0" max="2" step="1" value="1" aria-valuetext="Ready"></label>
+  <label class="slider">Turn <input id="turnSlider" type="range" min="0" max="2" step="1" value="1" aria-valuetext="Ready"></label>
   <div class="grid">
     <button id="stepFwd">Step forward</button>
     <button id="stepBack">Step back</button>
@@ -65,11 +65,11 @@
   <p data-modes="tilt" hidden>Tilt: hold the phone flat. Tip left or right to turn, top edge away to walk, toward you to back up.</p>
   <p data-modes="hold" hidden>Hold and drag: double tap and hold the pad to walk. Drag left or right to turn, toward you to back up, away to go forward. Let go to stop.</p>
   <p data-modes="compass" hidden>Compass: turn your body to turn. Hold the pad to walk; drag toward you to back up.</p>
-  <p data-modes="steps" hidden>Steps: swipe up or down on Walk to step, on Turn to turn right or left.</p>
+  <p data-modes="steps" hidden>Steps: double tap and hold the pad, then drag up to step forward, down to step back, left or right to turn. Keep dragging for more steps. Or swipe up or down on Walk and Turn.</p>
 </section>
 
 <div id="say" class="sr-only" aria-live="polite"></div>
 </main>
-<script src="chase.js?v=3"></script>
+<script src="chase.js?v=4"></script>
 </body>
 </html>

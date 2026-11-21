@@ -41,7 +41,10 @@ control that VoiceOver can step through.
   walks; drag left/right turns, further = sharper; drag toward you = backward,
   away = forward, latched; release stops), Compass (body turns, pad walks),
   Steps and buttons (3-position sliders that snap back, so VoiceOver swipe
-  up/down = one step or turn).
+  up/down = one step or turn). Steps mode is for braille display and
+  keyboard users: never put touch-only controls (the pad) in it.
+- Sliders must speak a real word: a lone "." valuetext made VoiceOver focus
+  jump (version 2).
 - Speech is polite and delayed 700 ms, never clearing VoiceOver mid-sentence:
   E.X.O. cut JAWS off when announcing pickups and Blake wants that fixed.
 - `window.__chase` exposes game state for Playwright checks.

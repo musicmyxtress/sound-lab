@@ -230,9 +230,10 @@ pad.addEventListener('pointerdown', e => {
   hold = { id: e.pointerId, x0: e.clientX, anchorY: e.clientY, dir: 1, dx: 0 };
   dirCue(1);
 });
-// Steps mode on the pad: while held, every 45 px of drag is one silent
-// action - up steps forward, down steps back, left/right turns. Keep holding
-// and keep dragging to take several.
+// Pad steps: while held, every 45 px of drag is one silent action - up steps
+// forward, down steps back, left/right turns. Dormant since version 5: steps
+// mode is for braille displays, so its pad was removed. Kept until Blake
+// decides whether it becomes its own mode.
 pad.addEventListener('pointermove', e => {
   if (!flick || e.pointerId !== flick.id) return;
   e.preventDefault();

@@ -95,6 +95,13 @@ control that VoiceOver can step through.
   play, fading to silence at the edge. Collected items are saved per chunk
   (colony.field.collected) and never return, so you clear an area and move
   on. Your field position is saved per colony. The old Sounds slider is gone.
+  v8: Blake walked 5 minutes with nothing, so items now spread across the
+  whole chunk (no clusters), hearing is 90 m with a gentler fade (ref 10 m,
+  linear edge), and density comes from a temporary Richness slider in
+  Settings (levels 1-5 = 0.8/1.5/2.5/4/6 per chunk, worded as "about one
+  every N metres"; default 3). Make his chosen level the default, then
+  remove the slider. Item i's place depends only on i, so changing richness
+  never moves existing items or breaks saved pickups.
 - Tone: cozy. Blake reserves the right to add problems later (for example
   storms on some planets, shown in the planet report). Don't add danger
   unasked.

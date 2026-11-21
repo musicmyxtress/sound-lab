@@ -11,7 +11,7 @@
 <main>
 
 <section class="screen" id="menu">
-  <h1 tabindex="-1">Colony lab, version 7</h1>
+  <h1 tabindex="-1">Colony lab, version 8</h1>
   <p id="menuMoney"></p>
   <p id="menuColony"></p>
   <button id="goExplore">Explore this planet</button>
@@ -83,12 +83,13 @@
     <label><input type="radio" name="mode" value="compass"> Compass</label>
     <label><input type="radio" name="mode" value="steps"> Steps and buttons</label>
   </fieldset>
+  <label class="slider">Richness <input id="richness" type="range" min="1" max="5" step="1" value="3"></label>
   <button id="startOver" class="small">Start over</button>
   <button class="toMenu small">Back to menu</button>
 </section>
 
 <div id="say" class="sr-only" aria-live="polite"></div>
 </main>
-<script src="colony.js?v=7"></script>
+<script src="colony.js?v=8"></script>
 </body>
 </html>

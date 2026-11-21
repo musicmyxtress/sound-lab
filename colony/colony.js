@@ -560,8 +560,24 @@ for (const r of document.querySelectorAll('input[name=mode]')) r.addEventListene
 // you can clear one area, then move on and find more.
 const WALK = 3, BACK = 2, MAX_TURN = 120, STEP = 2, STEP_TURN = 30, REACH = 2.5;
 const CHUNK = 50;        // metres per chunk side (PLACEHOLDER)
-const HEAR = 70;         // metres: hearing range, silent beyond (PLACEHOLDER)
-const MAX_PER_CHUNK = 3; // most chunks have 0 or 1; a few have 2 or 3
+const HEAR = 90;         // metres: hearing range, silent beyond (PLACEHOLDER)
+// Richness: average materials per 50 m square. A temporary Settings slider
+// so Blake can find the right density by ear, then it becomes the default.
+const RICHNESS = [0.8, 1.5, 2.5, 4, 6];
+let richLevel = 3;
+try { richLevel = +(localStorage.getItem('colony:richness') || 3); } catch {}
+const richAvg = () => RICHNESS[richLevel - 1];
+// Typical gap to the nearest material, in metres, for the slider's words.
+const richSpacing = lv => Math.round(0.5 * Math.sqrt(CHUNK * CHUNK / RICHNESS[lv - 1]));
+
+// Richness slider (Settings), described in plain words.
+const richEl = $('richness');
+const richText = () => richEl.setAttribute('aria-valuetext', `Level ${richLevel} of 5: about one every ${richSpacing(richLevel)} metres`);
+richEl.value = richLevel; richText();
+richEl.addEventListener('input', () => {
+  richLevel = +richEl.value; richText();
+  try { localStorage.setItem('colony:richness', richLevel); } catch {}
+});
 const STRIDE = 2.4;      // metres per mech footstep
 let wake = null, last = 0, tickAcc = 0, stepAcc = 0;
 const chunkCache = new Map(); // "cx,cy" -> generated items for this planet
@@ -573,19 +589,21 @@ function chunkItems(c, cx, cy) {
   const k = `${cx},${cy}`;
   if (chunkCache.has(k)) return chunkCache.get(k);
   const r = rng(mix(c.planet.seed, cx, cy));
-  let n = Math.round(MAX_PER_CHUNK * r() ** 2.5);
+  // Between half and one and a half times the richness average, so empty
+  // squares only happen at the sparsest level.
+  let n = Math.min(10, Math.round(richAvg() * (0.5 + r())));
   if (cx === 0 && cy === 0) n = Math.max(n, 2); // something to hear on landing
-  // Clustered: items sit around one point in the chunk.
-  const ccx = (cx + 0.25 + r() * 0.5) * CHUNK, ccy = (cy + 0.25 + r() * 0.5) * CHUNK;
   const mats = c.planet.materials;
   let total = 0; for (const m of mats) total += ABUNDANCE_WEIGHT[m.abundance];
   const items = [];
   for (let i = 0; i < n; i++) {
+    // Each item's place and material depend only on its own number, so
+    // changing richness adds or removes items without moving the others.
     const ri = rng(mix(c.planet.seed, cx, cy, i + 1));
-    const ang = ri() * Math.PI * 2, d = 4 + ri() * 14;
+    const x = (cx + ri()) * CHUNK, y = (cy + ri()) * CHUNK;
     let roll = ri() * total, mat = mats[0];
     for (const m of mats) { roll -= ABUNDANCE_WEIGHT[m.abundance]; if (roll < 0) { mat = m; break; } }
-    items.push({ key: `${k}:${i}`, chunk: k, i, x: ccx + Math.cos(ang) * d, y: ccy + Math.sin(ang) * d, mat });
+    items.push({ key: `${k}:${i}`, chunk: k, i, x, y, mat });
   }
   chunkCache.set(k, items);
   return items;
@@ -629,7 +647,7 @@ function stream() {
         near.add(it.key);
         if (!active.has(it.key)) {
           const out = ctx.createGain(); out.gain.value = 0; out.connect(master);
-          const panner = new PannerNode(ctx, { panningModel: 'HRTF', distanceModel: 'inverse', refDistance: 5, rolloffFactor: 1 });
+          const panner = new PannerNode(ctx, { panningModel: 'HRTF', distanceModel: 'inverse', refDistance: 10, rolloffFactor: 1 });
           panner.connect(out);
           const lp = filt('lowpass', 20000, 0.7, panner);
           active.set(it.key, { it, out, panner, lp, rate: 0.9 + Math.random() * 0.2, nextPing: ctx.currentTime + Math.random() * 1.2 });
@@ -649,7 +667,7 @@ function updateTargets() {
     A.panner.positionY.setTargetAtTime(0, now, 0.03);
     A.panner.positionZ.setTargetAtTime(-fwd, now, 0.03);
     A.lp.frequency.setTargetAtTime(700 * 28 ** ((fwd / dist + 1) / 2), now, 0.05); // behind = muffled
-    A.out.gain.setTargetAtTime(Math.max(0, 1 - dist / HEAR) ** 1.5, now, 0.1);     // fades to silence at the edge
+    A.out.gain.setTargetAtTime(Math.max(0, 1 - dist / HEAR), now, 0.1);     // fades to silence at the edge
     const gap = Math.min(1.4, 0.5 + dist / 60) * A.rate; // faster as you close in
     while (A.nextPing < now + 0.15) { playMat(T.mat.sound, A.lp, Math.max(A.nextPing, now)); A.nextPing += gap; }
   }

@@ -79,6 +79,9 @@ control that VoiceOver can step through.
   centers (no workers; credits per person), mines (1 worker each, staffed in
   material order as a placeholder). Pickup speech: "Zate: 3 found. Type:
   metal ore." UI says credits, not money. Forges and factories not built yet.
+- Decided: workers fill the chain in order (mines, then forges, then
+  factories); each factory makes one chosen product, switchable any time;
+  no roads, because building is menu-based, not spatial.
 - Planned fifth mode, native app only: Swipe steps - real swipes on a
   direct-touch play area (VoiceOver silent), up/down = step, left/right =
   turn. Not on the web: double-tap-and-hold made it feel the same as Hold

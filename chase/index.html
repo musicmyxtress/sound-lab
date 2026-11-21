@@ -7,19 +7,31 @@
 <title>Chase lab</title>
 <link rel="stylesheet" href="style.css?v=1">
 <style>
-  fieldset { margin: 1rem 0; }
-  fieldset label { display: block; padding: 0.5rem 0; }
+  /* Controls are big so they are easy to find by touch; instructions are
+     small and sit at the bottom, out of the way. */
+  h1 { font-size: 1.1rem; margin: 0 0 0.5rem; }
+  button { display: block; width: 100%; min-height: 4.5rem; font-size: 1.3rem; margin: 0.4rem 0; }
+  #start { min-height: 5.5rem; font-size: 1.6rem; }
+  #status { margin: 0.4rem 0; }
+  fieldset { margin: 0.8rem 0; }
+  fieldset label { display: block; padding: 0.9rem 0; font-size: 1.2rem; }
+  fieldset input { transform: scale(1.5); margin-right: 0.8rem; }
   #pad { touch-action: none; user-select: none; -webkit-user-select: none;
-         min-height: 55vh; border: 2px dashed currentColor; border-radius: 1rem;
-         display: flex; align-items: center; justify-content: center; margin: 1rem 0; }
-  input[type=range] { width: 100%; height: 2.5rem; }
+         min-height: 75vh; border: 3px dashed currentColor; border-radius: 1rem;
+         display: flex; align-items: center; justify-content: center;
+         margin: 0.8rem 0; font-size: 1.3rem; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; }
+  .grid button { min-height: 7rem; margin: 0; }
+  .slider { display: block; font-size: 1.2rem; margin: 0.6rem 0; }
+  .slider input { display: block; width: 100%; height: 4.5rem; }
+  .help { font-size: 0.85rem; line-height: 1.4; margin-top: 2rem; }
+  .help p { margin: 0.4rem 0; }
 </style>
 </head>
 <body>
 <main>
-<h1>Chase lab, version 2</h1>
-<p>Turn toward a mystery sound and walk to it. Headphones work best. Keep portrait orientation locked.</p>
-<button id="start" class="big">Start</button>
+<h1>Chase lab, version 3</h1>
+<button id="start">Start</button>
 <p id="status">Found 0</p>
 
 <fieldset id="modes">
@@ -30,39 +42,34 @@
   <label><input type="radio" name="mode" value="steps"> Steps and buttons</label>
 </fieldset>
 
-<section data-modes="tilt" hidden>
-  <p>Hold the phone flat like a tray. Tip the left or right edge down to turn; the further you tip, the faster you turn. Tip the top edge away from you to walk forward, toward you to walk back. Level means stop.</p>
-</section>
-
-<section data-modes="compass" hidden>
-  <p>Turn your body to turn. Hold the movement pad to walk: drag toward you to walk back, away to walk forward. Let go to stop.</p>
-</section>
-
-<section data-modes="tilt compass" hidden>
+<div data-modes="tilt compass" hidden>
   <button id="recenter">Recenter</button>
-</section>
-
-<section data-modes="hold" hidden>
-  <p>Double tap and hold the movement pad to start walking. Drag left or right to turn; the further you drag, the sharper the turn. Drag toward you to walk back, away to walk forward. Keep holding to keep moving; let go to stop.</p>
-</section>
+</div>
 
 <div id="pad" data-modes="hold compass" hidden role="button" tabindex="0"
-     aria-label="Movement pad. Double tap and hold to walk.">Movement pad</div>
+     aria-label="Movement pad">Movement pad</div>
 
-<section data-modes="steps" hidden>
-  <p>Walk: swipe up to step forward, down to step back. Turn: swipe up to turn right, down to turn left. The buttons do the same.</p>
-  <label>Walk <input id="walkSlider" type="range" min="0" max="2" step="1" value="1" aria-valuetext="."></label>
-  <label>Turn <input id="turnSlider" type="range" min="0" max="2" step="1" value="1" aria-valuetext="."></label>
-  <div>
+<div data-modes="steps" hidden>
+  <label class="slider">Walk <input id="walkSlider" type="range" min="0" max="2" step="1" value="1" aria-valuetext="."></label>
+  <label class="slider">Turn <input id="turnSlider" type="range" min="0" max="2" step="1" value="1" aria-valuetext="."></label>
+  <div class="grid">
     <button id="stepFwd">Step forward</button>
     <button id="stepBack">Step back</button>
     <button id="turnL">Turn left</button>
     <button id="turnR">Turn right</button>
   </div>
+</div>
+
+<section class="help" aria-label="How to play">
+  <p>Turn toward the mystery sound and walk to it. Headphones work best. Lock portrait orientation.</p>
+  <p data-modes="tilt" hidden>Tilt: hold the phone flat. Tip left or right to turn, top edge away to walk, toward you to back up.</p>
+  <p data-modes="hold" hidden>Hold and drag: double tap and hold the pad to walk. Drag left or right to turn, toward you to back up, away to go forward. Let go to stop.</p>
+  <p data-modes="compass" hidden>Compass: turn your body to turn. Hold the pad to walk; drag toward you to back up.</p>
+  <p data-modes="steps" hidden>Steps: swipe up or down on Walk to step, on Turn to turn right or left.</p>
 </section>
 
 <div id="say" class="sr-only" aria-live="polite"></div>
 </main>
-<script src="chase.js?v=2"></script>
+<script src="chase.js?v=3"></script>
 </body>
 </html>

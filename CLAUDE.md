@@ -49,7 +49,12 @@ control that VoiceOver can step through.
 - Game decisions so far (2026-11-21): keep a giant mech (Daniel loves it),
   but no suit upgrades. Endless, procedurally generated field and sounds that
   never run out. Building happens in a separate workshop (built things would
-  mask the field), reached by a "go home" command. Premise comes next.
+  mask the field), reached by a "go home" command.
+- Premise: space colonization. Find a planet, read its resource report,
+  choose to colonize; it becomes the field. Build houses, roads, factories,
+  mines, shops per colony. Money is universal (from commercial buildings,
+  needs colonists) and pays for new colonies; materials are per colony and
+  come slowly from mines and factories, so every colony starts by hand.
 - Planned fifth mode, native app only: Swipe steps - real swipes on a
   direct-touch play area (VoiceOver silent), up/down = step, left/right =
   turn. Not on the web: double-tap-and-hold made it feel the same as Hold

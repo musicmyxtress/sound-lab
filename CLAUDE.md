@@ -55,6 +55,18 @@ control that VoiceOver can step through.
   mines, shops per colony. Money is universal (from commercial buildings,
   needs colonists) and pays for new colonies; materials are per colony and
   come slowly from mines and factories, so every colony starts by hand.
+- Economy decisions: money cannot buy materials and materials cannot move
+  between colonies (for now). All colonies earn in real time, while playing
+  and while away; offline earnings cap at 4 hours, money buys higher caps.
+  Hand gathering is faster than mines, but mines let you colonize elsewhere
+  while they work.
+- `colony/` is the first playable game sketch (own colony.js and style.css,
+  copies the chase field code). Menu: Explore this planet, Return to colony,
+  My colonies, Blast off, Settings. Planets come from a seed (mulberry32), so
+  names, materials and procedural material sounds are fixed per planet. All
+  tuning numbers at the top of colony.js are PLACEHOLDERs for Blake. Save is
+  localStorage `colony:save:v1`. Live numbers update text in place, never
+  rebuilding buttons, so VoiceOver focus holds while money ticks in.
 - Planned fifth mode, native app only: Swipe steps - real swipes on a
   direct-touch play area (VoiceOver silent), up/down = step, left/right =
   turn. Not on the web: double-tap-and-hold made it feel the same as Hold

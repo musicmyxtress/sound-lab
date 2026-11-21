@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Colony lab</title>
+<link rel="stylesheet" href="style.css?v=1">
+</head>
+<body>
+<main>
+
+<section class="screen" id="menu">
+  <h1 tabindex="-1">Colony lab, version 1</h1>
+  <p id="menuMoney"></p>
+  <p id="menuColony"></p>
+  <button id="goExplore">Explore this planet</button>
+  <button id="goColony">Return to colony</button>
+  <button id="goColonies">My colonies</button>
+  <button id="goSpace">Blast off</button>
+  <button id="goSettings" class="small">Settings</button>
+  <p class="help" id="intro">You pilot a giant mech. Blast off to find a planet, read its report, and decide whether to colonize it.</p>
+</section>
+
+<section class="screen" id="space" hidden>
+  <h2 tabindex="-1" id="planetName"></h2>
+  <ul id="report"></ul>
+  <div id="samples"></div>
+  <button id="colonize"></button>
+  <button id="keepLooking">Keep looking</button>
+  <button class="toMenu small">Back to menu</button>
+</section>
+
+<section class="screen" id="field" hidden>
+  <h2 tabindex="-1" id="fieldTitle"></h2>
+  <div data-modes="tilt compass" hidden><button id="recenter">Recenter</button></div>
+  <div id="pad" data-modes="hold compass" hidden role="button" tabindex="0" aria-label="Movement pad">Movement pad</div>
+  <div data-modes="steps" hidden>
+    <label class="slider">Walk <input id="walkSlider" type="range" min="0" max="2" step="1" value="1" aria-valuetext="Ready"></label>
+    <label class="slider">Turn <input id="turnSlider" type="range" min="0" max="2" step="1" value="1" aria-valuetext="Ready"></label>
+    <div class="grid">
+      <button id="stepFwd">Step forward</button>
+      <button id="stepBack">Step back</button>
+      <button id="turnL">Turn left</button>
+      <button id="turnR">Turn right</button>
+    </div>
+  </div>
+  <button id="fieldToColony">Return to colony</button>
+  <button class="toMenu small">Menu</button>
+</section>
+
+<section class="screen" id="colony" hidden>
+  <h2 tabindex="-1" id="colonyName"></h2>
+  <p id="colonyPeople"></p>
+  <h3>Stock</h3>
+  <ul id="stock"></ul>
+  <h3>Build</h3>
+  <div id="build"></div>
+  <button id="colonyToField">Explore this planet</button>
+  <button class="toMenu small">Menu</button>
+</section>
+
+<section class="screen" id="colonies" hidden>
+  <h2 tabindex="-1">My colonies</h2>
+  <div id="colonyList"></div>
+  <button id="buyCap"></button>
+  <button class="toMenu small">Back to menu</button>
+</section>
+
+<section class="screen" id="settings" hidden>
+  <h2 tabindex="-1">Settings</h2>
+  <fieldset id="modes">
+    <legend>Controls</legend>
+    <label><input type="radio" name="mode" value="tilt"> Tilt</label>
+    <label><input type="radio" name="mode" value="hold"> Hold and drag</label>
+    <label><input type="radio" name="mode" value="compass"> Compass</label>
+    <label><input type="radio" name="mode" value="steps"> Steps and buttons</label>
+  </fieldset>
+  <label class="slider">Sounds in the field <input id="count" type="range" min="1" max="8" step="1" value="4"></label>
+  <button id="startOver" class="small">Start over</button>
+  <button class="toMenu small">Back to menu</button>
+</section>
+
+<div id="say" class="sr-only" aria-live="polite"></div>
+</main>
+<script src="colony.js?v=1"></script>
+</body>
+</html>

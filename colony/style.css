@@ -1,0 +1,23 @@
+/* Big controls for finding by touch; small help text out of the way. */
+body { font: 18px/1.5 system-ui, sans-serif; margin: 0 auto; max-width: 40rem; padding: 1rem; }
+h1, h2 { font-size: 1.3rem; margin: 0 0 0.5rem; }
+h3 { font-size: 1.1rem; margin: 1rem 0 0.3rem; }
+button { display: block; width: 100%; min-height: 4.5rem; font: inherit; font-size: 1.3rem; margin: 0.4rem 0; }
+button.small { min-height: 3rem; font-size: 1.05rem; }
+button[aria-disabled=true] { opacity: 0.55; }
+ul { padding-left: 1.2rem; }
+li { margin: 0.3rem 0; }
+fieldset { margin: 0.8rem 0; }
+fieldset label { display: block; padding: 0.9rem 0; font-size: 1.2rem; }
+fieldset input { transform: scale(1.5); margin-right: 0.8rem; }
+#pad { touch-action: none; user-select: none; -webkit-user-select: none;
+       min-height: 70vh; border: 3px dashed currentColor; border-radius: 1rem;
+       display: flex; align-items: center; justify-content: center;
+       margin: 0.8rem 0; font-size: 1.3rem; }
+.grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; }
+.grid button { min-height: 7rem; margin: 0; }
+.slider { display: block; font-size: 1.2rem; margin: 0.6rem 0; }
+.slider input { display: block; width: 100%; height: 4.5rem; }
+.help { font-size: 0.85rem; line-height: 1.4; margin-top: 1.5rem; }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+[hidden] { display: none !important; }

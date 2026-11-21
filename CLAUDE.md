@@ -43,6 +43,10 @@ control that VoiceOver can step through.
   Steps and buttons (3-position sliders that snap back, so VoiceOver swipe
   up/down = one step or turn). Steps mode is for braille display and
   keyboard users: never put touch-only controls (the pad) in it.
+- Planned fifth mode, native app only: Swipe steps - real swipes on a
+  direct-touch play area (VoiceOver silent), up/down = step, left/right =
+  turn. Not on the web: double-tap-and-hold made it feel the same as Hold
+  and drag, so it was removed (version 6).
 - Sliders must speak a real word: a lone "." valuetext made VoiceOver focus
   jump (version 2).
 - Speech is polite and delayed 700 ms, never clearing VoiceOver mid-sentence:

@@ -30,8 +30,9 @@ control that VoiceOver can step through.
 
 ## Game labs
 
-- `chase/` is a game sketch, not a synth lab: it does not use lab.js and
-  uses browser audio nodes (HRTF PannerNode). It tests phone controls for an
+- `chase/` is a game sketch, not a synth lab: it does not use lab.js or the
+  scale player, has its own `style.css` (so lab style changes never touch
+  it), and uses browser audio nodes (HRTF PannerNode). It tests phone controls for an
   audio exploration game inspired by E.X.O. (shiftBacktick) - chasing an
   unknown sound, then upgrading with the screen reader. Not a copy: setting,
   materials and names are still Blake's to design ("glass/metal/mist/ember"

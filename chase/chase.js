@@ -252,7 +252,10 @@ pad.addEventListener('touchmove', e => e.preventDefault(), { passive: false });
 function stepper(el, act) {
   el.addEventListener('input', () => {
     const v = +el.value; if (v === 1 || !S.running) { el.value = 1; return; }
-    el.setAttribute('aria-valuetext', act(v === 2 ? 1 : -1));
+    // The footstep or turn tick says what happened; a lone period gives
+    // VoiceOver nothing to speak after each swipe (version 2 experiment).
+    act(v === 2 ? 1 : -1);
+    el.setAttribute('aria-valuetext', '.');
     el.value = 1;
   });
 }

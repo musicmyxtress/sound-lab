@@ -12,7 +12,7 @@ const FAMILIES = ['glass', 'metal', 'mist', 'ember']; // placeholder names
 const SCALE = [0, 3, 5, 7, 10, 12, 15, 17];
 
 const $ = id => document.getElementById(id);
-const S = { x: 0, y: 0, h: 0, found: 0, target: null, running: false, mode: 'tilt' };
+const S = { x: 0, y: 0, h: 0, found: 0, targets: [], count: 4, running: false, mode: 'tilt' };
 window.__chase = S; // for automated checks
 let hold = null; // hold pad state, declared early because setMode clears it
 
@@ -128,10 +128,17 @@ function stopCue() {
   osc('triangle', 330, t, 0.06, env(t, 0.005, 0.05, 0.1, master));
 }
 
-// ---------- the target ----------
+// ---------- the targets ----------
+// Several sounds at once: choosing which to chase is the strategy.
+let pending = 0; // pickups waiting to be replaced
 function spawn(first) {
-  const ang = (first ? S.h : Math.random() * 360) * Math.PI / 180;
-  const dist = first ? 20 : 25 + Math.random() * 35;
+  let x, y;
+  for (let tries = 0; tries < 10; tries++) { // keep sounds at least 12 m apart
+    const ang = (first ? S.h : Math.random() * 360) * Math.PI / 180;
+    const dist = first ? 20 : 25 + Math.random() * 35;
+    x = S.x + Math.sin(ang) * dist; y = S.y + Math.cos(ang) * dist;
+    if (first || S.targets.every(o => Math.hypot(o.x - x, o.y - y) > 12)) break;
+  }
   const fam = FAMILIES[Math.floor(Math.random() * FAMILIES.length)];
   const f = 220 * 2 ** (SCALE[Math.floor(Math.random() * SCALE.length)] / 12);
   const panner = new PannerNode(ctx, {
@@ -139,32 +146,41 @@ function spawn(first) {
   });
   panner.connect(master);
   const lp = filt('lowpass', 20000, 0.7, panner);
-  S.target = { x: S.x + Math.sin(ang) * dist, y: S.y + Math.cos(ang) * dist,
-               fam, f, panner, lp, nextPing: ctx.currentTime + 0.4 };
-  updateTarget();
+  // Random start and a slightly different rhythm each, so they never ping in unison.
+  S.targets.push({ x, y, fam, f, panner, lp, rate: 0.9 + Math.random() * 0.2,
+                   nextPing: ctx.currentTime + 0.3 + Math.random() * 1.2 });
+}
+
+function refill() {
+  while (S.targets.length + pending < S.count) spawn(false);
+  while (S.targets.length > S.count) { // drop the farthest
+    let far = 0, fd = -1;
+    S.targets.forEach((T, i) => { const d = Math.hypot(T.x - S.x, T.y - S.y); if (d > fd) { fd = d; far = i; } });
+    S.targets.splice(far, 1)[0].panner.disconnect();
+  }
 }
 
 function updateTarget() {
-  const T = S.target; if (!T) return;
-  const rx = T.x - S.x, ry = T.y - S.y, dist = Math.hypot(rx, ry);
-  if (dist < REACH) return collect();
-  const h = S.h * Math.PI / 180;
-  const fwd = rx * Math.sin(h) + ry * Math.cos(h);
-  const right = rx * Math.cos(h) - ry * Math.sin(h);
-  const now = ctx.currentTime;
-  T.panner.positionX.setTargetAtTime(right, now, 0.03);
-  T.panner.positionY.setTargetAtTime(0, now, 0.03);
-  T.panner.positionZ.setTargetAtTime(-fwd, now, 0.03);
-  // Behind you sounds muffled: phone HRTF alone confuses front and back.
-  const facing = (fwd / dist + 1) / 2; // 0 behind .. 1 ahead
-  T.lp.frequency.setTargetAtTime(700 * 28 ** facing, now, 0.05);
-  // Pings come faster as you close in.
-  const gap = Math.min(1.4, 0.5 + dist / 60);
-  while (T.nextPing < now + 0.15) { VOICES[T.fam](T.lp, Math.max(T.nextPing, now), T.f); T.nextPing += gap; }
+  const h = S.h * Math.PI / 180, now = ctx.currentTime;
+  for (const T of [...S.targets]) {
+    const rx = T.x - S.x, ry = T.y - S.y, dist = Math.hypot(rx, ry);
+    if (dist < REACH) { collect(T); continue; }
+    const fwd = rx * Math.sin(h) + ry * Math.cos(h);
+    const right = rx * Math.cos(h) - ry * Math.sin(h);
+    T.panner.positionX.setTargetAtTime(right, now, 0.03);
+    T.panner.positionY.setTargetAtTime(0, now, 0.03);
+    T.panner.positionZ.setTargetAtTime(-fwd, now, 0.03);
+    // Behind you sounds muffled: phone HRTF alone confuses front and back.
+    const facing = (fwd / dist + 1) / 2; // 0 behind .. 1 ahead
+    T.lp.frequency.setTargetAtTime(700 * 28 ** facing, now, 0.05);
+    // Pings come faster as you close in.
+    const gap = Math.min(1.4, 0.5 + dist / 60) * T.rate;
+    while (T.nextPing < now + 0.15) { VOICES[T.fam](T.lp, Math.max(T.nextPing, now), T.f); T.nextPing += gap; }
+  }
 }
 
-function collect() {
-  const T = S.target; S.target = null;
+function collect(T) {
+  S.targets.splice(S.targets.indexOf(T), 1);
   T.panner.disconnect();
   S.found++;
   const t = ctx.currentTime;
@@ -172,8 +188,21 @@ function collect() {
   const name = T.fam[0].toUpperCase() + T.fam.slice(1);
   $('status').textContent = `Found ${S.found}`;
   say(`${name}. ${S.found} found.`);
-  setTimeout(() => { if (S.running && !S.target) spawn(false); }, 1500);
+  pending++;
+  setTimeout(() => { pending--; if (S.running) refill(); }, 1500);
 }
+
+// How many sounds: a slider so the right number is found by ear.
+const countEl = $('count');
+try { S.count = +(localStorage.getItem('chase:count') || 4); } catch { S.count = 4; }
+countEl.value = S.count;
+const countText = () => countEl.setAttribute('aria-valuetext', `${S.count} sound${S.count === 1 ? '' : 's'}`);
+countText();
+countEl.addEventListener('input', () => {
+  S.count = +countEl.value; countText();
+  try { localStorage.setItem('chase:count', S.count); } catch {}
+  if (S.running) refill();
+});
 
 // ---------- movement ----------
 let tickAcc = 0, stepAcc = 0;
@@ -319,7 +348,7 @@ $('start').addEventListener('click', async () => {
   $('start').textContent = 'Pause';
   recenter();
   keepAwake();
-  if (!S.target) spawn(S.found === 0);
+  if (!S.targets.length) { if (S.found === 0) spawn(true); refill(); }
   last = performance.now();
   requestAnimationFrame(frame);
 });

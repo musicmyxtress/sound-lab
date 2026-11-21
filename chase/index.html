@@ -30,9 +30,10 @@
 </head>
 <body>
 <main>
-<h1>Chase lab, version 6</h1>
+<h1>Chase lab, version 7</h1>
 <button id="start">Start</button>
 <p id="status">Found 0</p>
+<label class="slider">Sounds <input id="count" type="range" min="1" max="8" step="1" value="4"></label>
 
 <fieldset id="modes">
   <legend>Controls</legend>
@@ -61,7 +62,7 @@
 </div>
 
 <section class="help" aria-label="How to play">
-  <p>Turn toward the mystery sound and walk to it. Headphones work best. Lock portrait orientation.</p>
+  <p>Several mystery sounds play around you. Pick one, turn toward it and walk to it. Headphones work best. Lock portrait orientation.</p>
   <p data-modes="tilt" hidden>Tilt: hold the phone flat. Tip left or right to turn, top edge away to walk, toward you to back up.</p>
   <p data-modes="hold" hidden>Hold and drag: double tap and hold the pad to walk. Drag left or right to turn, toward you to back up, away to go forward. Let go to stop.</p>
   <p data-modes="compass" hidden>Compass: turn your body to turn. Hold the pad to walk; drag toward you to back up.</p>
@@ -70,6 +71,6 @@
 
 <div id="say" class="sr-only" aria-live="polite"></div>
 </main>
-<script src="chase.js?v=6"></script>
+<script src="chase.js?v=7"></script>
 </body>
 </html>

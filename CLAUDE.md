@@ -43,6 +43,13 @@ control that VoiceOver can step through.
   Steps and buttons (3-position sliders that snap back, so VoiceOver swipe
   up/down = one step or turn). Steps mode is for braille display and
   keyboard users: never put touch-only controls (the pad) in it.
+- Several sounds at once (Sounds slider, 1-8, default 4): choosing which to
+  chase is the strategy Blake loved in E.X.O. Each has its own rhythm so
+  they never ping in unison; pickups refill after 1.5 s.
+- Game decisions so far (2026-11-21): keep a giant mech (Daniel loves it),
+  but no suit upgrades. Endless, procedurally generated field and sounds that
+  never run out. Building happens in a separate workshop (built things would
+  mask the field), reached by a "go home" command. Premise comes next.
 - Planned fifth mode, native app only: Swipe steps - real swipes on a
   direct-touch play area (VoiceOver silent), up/down = step, left/right =
   turn. Not on the web: double-tap-and-hold made it feel the same as Hold

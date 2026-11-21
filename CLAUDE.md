@@ -28,6 +28,23 @@ control that VoiceOver can step through.
 - "Copy all spots" puts readable slider positions on the clipboard; Blake
   pastes them to Claude to say where he landed.
 
+## Game labs
+
+- `chase/` is a game sketch, not a synth lab: it does not use lab.js and
+  uses browser audio nodes (HRTF PannerNode). It tests phone controls for an
+  audio exploration game inspired by E.X.O. (shiftBacktick) - chasing an
+  unknown sound, then upgrading with the screen reader. Not a copy: setting,
+  materials and names are still Blake's to design ("glass/metal/mist/ember"
+  are placeholders).
+- Four control settings, all designed by Blake: Tilt, Hold and drag (press
+  walks; drag left/right turns, further = sharper; drag toward you = backward,
+  away = forward, latched; release stops), Compass (body turns, pad walks),
+  Steps and buttons (3-position sliders that snap back, so VoiceOver swipe
+  up/down = one step or turn).
+- Speech is polite and delayed 700 ms, never clearing VoiceOver mid-sentence:
+  E.X.O. cut JAWS off when announcing pickups and Blake wants that fixed.
+- `window.__chase` exposes game state for Playwright checks.
+
 ## Rules
 
 - Bump the `?v=N` query strings and the lab's `version` on every change, so

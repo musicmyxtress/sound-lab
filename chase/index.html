@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Chase lab</title>
+<link rel="stylesheet" href="../lab/lab.css?v=4">
+<style>
+  fieldset { margin: 1rem 0; }
+  fieldset label { display: block; padding: 0.5rem 0; }
+  #pad { touch-action: none; user-select: none; -webkit-user-select: none;
+         min-height: 55vh; border: 2px dashed currentColor; border-radius: 1rem;
+         display: flex; align-items: center; justify-content: center; margin: 1rem 0; }
+  input[type=range] { width: 100%; height: 2.5rem; }
+</style>
+</head>
+<body>
+<main>
+<h1>Chase lab, version 1</h1>
+<p>Turn toward a mystery sound and walk to it. Headphones work best. Keep portrait orientation locked.</p>
+<button id="start" class="big">Start</button>
+<p id="status">Found 0</p>
+
+<fieldset id="modes">
+  <legend>Controls</legend>
+  <label><input type="radio" name="mode" value="tilt"> Tilt</label>
+  <label><input type="radio" name="mode" value="hold"> Hold and drag</label>
+  <label><input type="radio" name="mode" value="compass"> Compass</label>
+  <label><input type="radio" name="mode" value="steps"> Steps and buttons</label>
+</fieldset>
+
+<section data-modes="tilt" hidden>
+  <p>Hold the phone flat like a tray. Tip the left or right edge down to turn; the further you tip, the faster you turn. Tip the top edge away from you to walk forward, toward you to walk back. Level means stop.</p>
+</section>
+
+<section data-modes="compass" hidden>
+  <p>Turn your body to turn. Hold the movement pad to walk: drag toward you to walk back, away to walk forward. Let go to stop.</p>
+</section>
+
+<section data-modes="tilt compass" hidden>
+  <button id="recenter">Recenter</button>
+</section>
+
+<section data-modes="hold" hidden>
+  <p>Double tap and hold the movement pad to start walking. Drag left or right to turn; the further you drag, the sharper the turn. Drag toward you to walk back, away to walk forward. Keep holding to keep moving; let go to stop.</p>
+</section>
+
+<div id="pad" data-modes="hold compass" hidden role="button" tabindex="0"
+     aria-label="Movement pad. Double tap and hold to walk.">Movement pad</div>
+
+<section data-modes="steps" hidden>
+  <p>Walk: swipe up to step forward, down to step back. Turn: swipe up to turn right, down to turn left. The buttons do the same.</p>
+  <label>Walk <input id="walkSlider" type="range" min="0" max="2" step="1" value="1" aria-valuetext="Ready"></label>
+  <label>Turn <input id="turnSlider" type="range" min="0" max="2" step="1" value="1" aria-valuetext="Ready"></label>
+  <div>
+    <button id="stepFwd">Step forward</button>
+    <button id="stepBack">Step back</button>
+    <button id="turnL">Turn left</button>
+    <button id="turnR">Turn right</button>
+  </div>
+</section>
+
+<div id="say" class="sr-only" aria-live="polite"></div>
+</main>
+<script src="chase.js?v=1"></script>
+</body>
+</html>

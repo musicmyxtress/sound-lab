@@ -536,6 +536,22 @@ for (const r of document.querySelectorAll('input[name=mode]')) {
 }
 setMode(S.mode);
 
+// The field's own Controls button: switch schemes without leaving the field.
+// It stays in place while the other controls change, so focus stays on it.
+const MODE_NAMES = { tilt: 'Tilt', hold: 'Hold and drag', compass: 'Compass', steps: 'Steps and buttons' };
+const MODE_ORDER = Object.keys(MODE_NAMES);
+const modeLabel = () => { $('fieldMode').textContent = `Controls: ${MODE_NAMES[S.mode]}. Double tap to change.`; };
+modeLabel();
+$('fieldMode').addEventListener('click', async () => {
+  const m = MODE_ORDER[(MODE_ORDER.indexOf(S.mode) + 1) % MODE_ORDER.length];
+  setMode(m);
+  for (const r of document.querySelectorAll('input[name=mode]')) r.checked = r.value === m;
+  modeLabel();
+  if (m === 'tilt' || m === 'compass') { await askMotion(); recenter(); }
+  say(`${MODE_NAMES[m]}.`);
+});
+for (const r of document.querySelectorAll('input[name=mode]')) r.addEventListener('change', modeLabel);
+
 // ---------- the field: an endless world in chunks ----------
 // Like E.X.O.: the planet's surface is cut into squares (chunks). Each
 // chunk's materials come from the planet seed plus the chunk's position, so

@@ -86,6 +86,9 @@ control that VoiceOver can step through.
   they are waiting for. Houses and shopping centers now cost bricks;
   factories cost bricks and bars. Servos and motors have no use yet. All
   recipes and costs are PLACEHOLDERs. Goods live in colony.stock as g:*.
+- The field has its own Controls button (v7) cycling the four schemes; it
+  stays put while the other controls swap, so VoiceOver focus holds. Settings
+  still has the same choice.
 - Field (v5) follows E.X.O.'s rules: the surface is cut into 50 m chunks;
   each chunk's 0-3 clustered materials come from the planet seed plus the
   chunk position, so the world is fixed and endless. Only items within 70 m

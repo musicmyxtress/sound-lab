@@ -67,6 +67,13 @@ control that VoiceOver can step through.
   tuning numbers at the top of colony.js are PLACEHOLDERs for Blake. Save is
   localStorage `colony:save:v1`. Live numbers update text in place, never
   rebuilding buttons, so VoiceOver focus holds while money ticks in.
+- Buildings design (2026-11-21): cabins house 2 people (cheaper), houses 4.
+  Production chain, each needs workers: mine (1) -> raw ore; forge (2) ore ->
+  bars; factory (3) bars -> components: wires, servos, motors, beams, bricks.
+  Any number of each; a building stops when it lacks inputs. Components make
+  construction easier than crafting everything individually. Shopping centers
+  produce a small amount of credits per person in that colony.
+  Not built yet: colony v1 still has the placeholder house/shop/mine.
 - Planned fifth mode, native app only: Swipe steps - real swipes on a
   direct-touch play area (VoiceOver silent), up/down = step, left/right =
   turn. Not on the web: double-tap-and-hold made it feel the same as Hold

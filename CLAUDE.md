@@ -86,6 +86,9 @@ control that VoiceOver can step through.
   play, fading to silence at the edge. Collected items are saved per chunk
   (colony.field.collected) and never return, so you clear an area and move
   on. Your field position is saved per colony. The old Sounds slider is gone.
+- Tone: cozy. Blake reserves the right to add problems later (for example
+  storms on some planets, shown in the planet report). Don't add danger
+  unasked.
 - Mech footsteps (v5): servo whine, deep thud, metal clank, ground crunch,
   every 2.4 m, left/right feet alternate in stereo.
 - The mech builds (v4): each build plays a hydraulic hiss, heavy clanks

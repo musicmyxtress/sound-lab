@@ -89,6 +89,8 @@ control that VoiceOver can step through.
 - Tone: cozy. Blake reserves the right to add problems later (for example
   storms on some planets, shown in the planet report). Don't add danger
   unasked.
+- The mech is just a machine, no voice. Later: battery and health mechanics,
+  which is when a voice might come in. Not designed yet; don't build unasked.
 - Mech footsteps (v5): servo whine, deep thud, metal clank, ground crunch,
   every 2.4 m, left/right feet alternate in stereo.
 - The mech builds (v4): each build plays a hydraulic hiss, heavy clanks

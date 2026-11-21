@@ -73,7 +73,12 @@ control that VoiceOver can step through.
   Any number of each; a building stops when it lacks inputs. Components make
   construction easier than crafting everything individually. Shopping centers
   produce a small amount of credits per person in that colony.
-  Not built yet: colony v1 still has the placeholder house/shop/mine.
+  Built in colony v2: material types (wood, stone, metal ore, crystal, clay;
+  every planet has wood, stone, metal ore; each type has its own sound kind
+  so types are learnable by ear), cabins (wood + stone), houses, shopping
+  centers (no workers; credits per person), mines (1 worker each, staffed in
+  material order as a placeholder). Pickup speech: "Zate: 3 found. Type:
+  metal ore." UI says credits, not money. Forges and factories not built yet.
 - Planned fifth mode, native app only: Swipe steps - real swipes on a
   direct-touch play area (VoiceOver silent), up/down = step, left/right =
   turn. Not on the web: double-tap-and-hold made it feel the same as Hold

@@ -8,15 +8,15 @@ const $ = id => document.getElementById(id);
 const el = (tag, props = {}) => Object.assign(document.createElement(tag), props);
 
 // ---------- tuning (PLACEHOLDER numbers) ----------
-const SHOP_RATE = 5 / 60;          // money per second per staffed shop
-const PEOPLE_PER_HOUSE = 4, PEOPLE_PER_SHOP = 4;
-const MINE_SECONDS = 120;          // one unit per mine per two minutes (hand is faster)
+const CENTER_RATE = 1 / 60;        // credits per second, per person, per shopping center
+const PEOPLE = { cabin: 2, house: 4 };
+const MINE_SECONDS = 120;          // one unit per staffed mine per two minutes (hand is faster)
 const colonizeCost = n => n === 0 ? 0 : Math.round(100 * 2.5 ** (n - 1));
 const CAP_STEPS = [{ hours: 8, cost: 300 }, { hours: 12, cost: 800 }, { hours: 24, cost: 2000 }];
 const ABUNDANCE_WEIGHT = { plentiful: 5, common: 3, scarce: 1 };
 
 // ---------- save ----------
-const SAVE_KEY = 'colony:save:v1';
+const SAVE_KEY = 'colony:save:v2'; // v2: materials have types
 const fresh = () => ({ money: 0, cap: 4, capLevel: 0, colonies: [], current: -1, founded: 0, last: Date.now() });
 let G;
 try { G = JSON.parse(localStorage.getItem(SAVE_KEY)) || fresh(); } catch { G = fresh(); }
@@ -49,22 +49,25 @@ function makePlanet(seed) {
   const r = rng(seed);
   const name = word(r, 2 + Math.floor(r() * 2));
   const climate = pick(r, ['frozen', 'dusty', 'stormy', 'rocky', 'humid', 'volcanic']);
-  const n = 3 + Math.floor(r() * 3);
-  const kinds = ['bell', 'fm', 'noise', 'pluck'].sort(() => r() - 0.5);
-  const levels = ['plentiful', 'common'];
-  while (levels.length < n - 1) levels.push(r() < 0.5 ? 'common' : 'scarce');
-  levels.push('scarce');
+  // Every planet has wood, stone and metal ore (cabins need wood and stone),
+  // plus up to two extras. How plentiful each is differs per planet.
+  const types = ['wood', 'stone', 'metal ore'];
+  const extras = Math.floor(r() * 3);
+  for (let i = 0; i < extras; i++) types.push(pick(r, ['metal ore', 'crystal', 'clay']));
+  const levels = types.map(() => pick(r, ['plentiful', 'common', 'common', 'scarce']));
   const used = new Set();
-  const materials = levels.map((abundance, i) => {
+  const materials = types.map((type, i) => {
     let nm; do { nm = word(r, 1 + Math.floor(r() * 2)) + pick(r, ['ite', 'ium', 'on', 'ar', 'ex', 'ine']); } while (used.has(nm));
     used.add(nm);
-    return { id: 'm' + i, name: nm, abundance, sound: makeSound(r, kinds[i % kinds.length]) };
+    return { id: 'm' + i, name: nm, type, abundance: levels[i], sound: makeSound(r, TYPE_SOUND[type]) };
   });
   return { seed, name, climate, materials };
 }
 
-// A material's sound, generated once from the planet's seed. Families share
-// a kind, so they can be learned by ear, but settings make each unique.
+// A material's sound, generated once from the planet's seed. Each type has
+// its own kind of sound, so types can be learned by ear; the settings make
+// each material unique.
+const TYPE_SOUND = { wood: 'pluck', stone: 'noise', 'metal ore': 'fm', crystal: 'bell', clay: 'thud' };
 function makeSound(r, kind) {
   const semis = [0, 3, 5, 7, 10, 12, 15, 17, 19, 22, 24];
   return {
@@ -148,6 +151,10 @@ const KINDS = {
     lp.frequency.exponentialRampToValueAtTime(f * 1.2, t + s.decay);
     osc(s.rough > 0.5 ? 'square' : 'sawtooth', f, t, s.decay, lp);
   },
+  thud(out, t, f, s) { // soft, low, pitch dropping: clay
+    const o = osc('sine', f, t, s.decay + 0.1, env(t, 0.005, s.decay, 0.6, out));
+    o.frequency.setValueAtTime(f * 1.5, t); o.frequency.exponentialRampToValueAtTime(f * 0.5, t + s.decay);
+  },
 };
 function playMat(s, out, t, mul = 1) {
   for (let k = 0; k < s.hits; k++) KINDS[s.kind](out, t + k * s.gap, s.f * mul * s.step ** k, s);
@@ -169,28 +176,40 @@ function tick() {
   const dt = Math.min(Math.max(0, (now - G.last) / 1000), G.cap * 3600);
   G.last = now;
   for (const c of G.colonies) {
-    G.money += staffed(c) * SHOP_RATE * dt;
+    G.money += c.centers * people(c) * CENTER_RATE * dt;
+    const staff = mineStaff(c);
     for (const id in c.mines) {
-      c.mineProg[id] = (c.mineProg[id] || 0) + c.mines[id] * dt / MINE_SECONDS;
+      c.mineProg[id] = (c.mineProg[id] || 0) + staff[id] * dt / MINE_SECONDS;
       const whole = Math.floor(c.mineProg[id]);
       if (whole) { c.stock[id] += whole; c.mineProg[id] -= whole; }
     }
   }
 }
-const people = c => c.houses * PEOPLE_PER_HOUSE;
-const staffed = c => Math.min(c.shops, Math.floor(people(c) / PEOPLE_PER_SHOP));
+const people = c => c.cabins * PEOPLE.cabin + c.houses * PEOPLE.house;
+// Each mine needs 1 worker; workers fill mines in material order.
+function mineStaff(c) {
+  let free = people(c); const staff = {};
+  for (const m of c.planet.materials) { staff[m.id] = Math.min(c.mines[m.id] || 0, free); free -= staff[m.id]; }
+  return staff;
+}
+const totalMines = c => Object.values(c.mines).reduce((a, b) => a + b, 0);
+const staffedMines = c => Object.values(mineStaff(c)).reduce((a, b) => a + b, 0);
 const money = () => Math.floor(G.money);
 const matName = (c, id) => c.planet.materials.find(m => m.id === id).name;
 
 // Building costs use the planet's own materials, most plentiful first.
 function costs(c) {
-  const [m0, m1] = c.planet.materials, last = c.planet.materials.at(-1);
+  // Costs name a type; the planet's most plentiful material of that type pays.
+  const of = type => c.planet.materials.filter(m => m.type === type)
+    .sort((a, b) => ABUNDANCE_WEIGHT[b.abundance] - ABUNDANCE_WEIGHT[a.abundance])[0].id;
+  const wood = of('wood'), stone = of('stone'), ore = of('metal ore');
   const list = [
-    { key: 'house', label: 'house', cost: { [m0.id]: 6, [m1.id]: 2 } },
-    { key: 'shop', label: 'shop', cost: { [m0.id]: 4, [m1.id]: 4, [last.id]: 1 } },
+    { key: 'cabin', label: 'cabin', cost: { [wood]: 4, [stone]: 2 } },
+    { key: 'house', label: 'house', cost: { [wood]: 6, [stone]: 6 } },
+    { key: 'center', label: 'shopping center', cost: { [wood]: 6, [stone]: 8, [ore]: 2 } },
   ];
   for (const m of c.planet.materials)
-    list.push({ key: 'mine:' + m.id, label: m.name + ' mine', cost: { [m0.id]: 8, [m1.id]: 3 } });
+    list.push({ key: 'mine:' + m.id, label: m.name + ' mine', cost: { [wood]: 4, [stone]: 4 } });
   return list;
 }
 const costText = (c, cost) => Object.entries(cost).map(([id, n]) => `${n} ${matName(c, id)}`).join(', ');
@@ -210,7 +229,7 @@ for (const b of document.querySelectorAll('.toMenu')) b.addEventListener('click'
 
 const RENDER = {
   menu() {
-    $('menuMoney').textContent = `Money: ${money()}`;
+    $('menuMoney').textContent = `Credits: ${money()}`;
     const c = cur();
     $('menuColony').textContent = c ? `Current colony: ${c.planet.name}` : 'No colony yet';
     $('goExplore').hidden = $('goColony').hidden = !c;
@@ -222,7 +241,7 @@ const RENDER = {
     $('planetName').textContent = `Planet ${p.name}`;
     const rep = $('report'); rep.replaceChildren();
     rep.append(el('li', { textContent: `Climate: ${p.climate}` }));
-    for (const m of p.materials) rep.append(el('li', { textContent: `${m.name}: ${m.abundance}` }));
+    for (const m of p.materials) rep.append(el('li', { textContent: `${m.name}: ${m.type}, ${m.abundance}` }));
     const smp = $('samples'); smp.replaceChildren();
     for (const m of p.materials) {
       const b = el('button', { textContent: `Hear ${m.name}`, className: 'small' });
@@ -231,7 +250,7 @@ const RENDER = {
     }
     const cost = colonizeCost(G.founded);
     const btn = $('colonize');
-    btn.textContent = cost ? `Colonize: costs ${cost} money. You have ${money()}.` : 'Colonize: your first colony is free';
+    btn.textContent = cost ? `Colonize: costs ${cost} credits. You have ${money()}.` : 'Colonize: your first colony is free';
     btn.setAttribute('aria-disabled', money() < cost);
   },
   colony() {
@@ -250,14 +269,13 @@ const RENDER = {
   colonies() {
     const list = $('colonyList'); list.replaceChildren();
     G.colonies.forEach((c, i) => {
-      const mines = Object.values(c.mines).reduce((a, b) => a + b, 0);
-      const b = el('button', { textContent: `${c.planet.name}${i === G.current ? ', current' : ''}: ${count(people(c), 'colonist')}, ${count(c.shops, 'shop')}, ${count(mines, 'mine')}` });
+      const b = el('button', { textContent: `${c.planet.name}${i === G.current ? ', current' : ''}: ${count(people(c), 'colonist')}, ${count(c.centers, 'shopping center')}, ${count(totalMines(c), 'mine')}` });
       b.addEventListener('click', () => { G.current = i; save(); show('colony'); });
       list.append(b);
     });
     const next = CAP_STEPS[G.capLevel];
     $('buyCap').textContent = next
-      ? `Offline storage: ${G.cap} hours. Upgrade to ${next.hours} hours for ${next.cost} money.`
+      ? `Offline storage: ${G.cap} hours. Upgrade to ${next.hours} hours for ${next.cost} credits.`
       : `Offline storage: ${G.cap} hours, the maximum.`;
     $('buyCap').setAttribute('aria-disabled', !next || money() < next.cost);
   },
@@ -267,10 +285,11 @@ const RENDER = {
 // VoiceOver focus is never thrown off a button while money ticks in.
 function refreshColony() {
   const c = cur();
-  $('colonyPeople').textContent = `${count(people(c), 'colonist')}, ${count(c.shops, 'shop')}, ${staffed(c)} staffed. Money: ${money()}.`;
+  const mineNote = totalMines(c) ? ` ${staffedMines(c)} of ${count(totalMines(c), 'mine')} staffed.` : '';
+  $('colonyPeople').textContent = `${count(people(c), 'colonist')}: ${count(c.cabins, 'cabin')}, ${count(c.houses, 'house')}. ${count(c.centers, 'shopping center')}.${mineNote} Credits: ${money()}.`;
   for (const m of c.planet.materials) {
     const mines = c.mines[m.id] || 0;
-    $('stock-' + m.id).textContent = `${m.name}: ${c.stock[m.id]}${mines ? `, ${mines} mine${mines > 1 ? 's' : ''}` : ''}`;
+    $('stock-' + m.id).textContent = `${m.name}, ${m.type}: ${c.stock[m.id]}${mines ? `, ${count(mines, 'mine')}` : ''}`;
   }
   for (const item of costs(c)) {
     const b = $('build-' + item.key);
@@ -287,13 +306,14 @@ function build(c, item) {
     return say(`Need ${short}.`);
   }
   for (const [id, n] of Object.entries(item.cost)) c.stock[id] -= n;
-  if (item.key === 'house') { c.houses++; say(`House built. ${people(c)} colonists.`); }
-  else if (item.key === 'shop') {
-    c.shops++;
-    say(staffed(c) < c.shops ? `Shop built, but it needs ${PEOPLE_PER_SHOP} colonists to open. Build a house.` : 'Shop built and open.');
+  if (item.key === 'cabin') { c.cabins++; say(`Cabin built. ${count(people(c), 'colonist')}.`); }
+  else if (item.key === 'house') { c.houses++; say(`House built. ${count(people(c), 'colonist')}.`); }
+  else if (item.key === 'center') {
+    c.centers++;
+    say(people(c) ? 'Shopping center built.' : 'Shopping center built. It earns once people live here.');
   } else {
     const id = item.key.slice(5); c.mines[id] = (c.mines[id] || 0) + 1;
-    say(`${matName(c, id)} mine built.`);
+    say(staffedMines(c) < totalMines(c) ? `${matName(c, id)} mine built, but it needs a worker. Build a cabin or house.` : `${matName(c, id)} mine built.`);
   }
   save(); refreshColony();
 }
@@ -312,22 +332,22 @@ $('fieldToColony').addEventListener('click', () => show('colony'));
 
 $('colonize').addEventListener('click', () => {
   const cost = colonizeCost(G.founded);
-  if (money() < cost) return say(`You need ${cost - money()} more money.`);
+  if (money() < cost) return say(`You need ${cost - money()} more credits.`);
   G.money -= cost; G.founded++;
   const stock = {}; for (const m of scout.materials) stock[m.id] = 0;
-  G.colonies.push({ planet: scout, stock, houses: 0, shops: 0, mines: {}, mineProg: {} });
+  G.colonies.push({ planet: scout, stock, cabins: 0, houses: 0, centers: 0, mines: {}, mineProg: {} });
   G.current = G.colonies.length - 1;
   save(); show('colony');
 });
 $('buyCap').addEventListener('click', () => {
   const next = CAP_STEPS[G.capLevel];
   if (!next) return;
-  if (money() < next.cost) return say(`You need ${next.cost - money()} more money.`);
+  if (money() < next.cost) return say(`You need ${next.cost - money()} more credits.`);
   G.money -= next.cost; G.cap = next.hours; G.capLevel++;
   save(); RENDER.colonies(); say(`Offline storage is now ${G.cap} hours.`);
 });
 $('startOver').addEventListener('click', () => {
-  if (!confirm('Start over? This deletes all colonies and money.')) return;
+  if (!confirm('Start over? This deletes all colonies and credits.')) return;
   G = fresh(); save(); show('menu');
 });
 
@@ -418,7 +438,7 @@ function collect(T) {
   const c = cur(); c.stock[T.mat.id]++; save();
   const t = ctx.currentTime;
   [1, 1.25, 1.5].forEach((m, i) => playMat(T.mat.sound, master, t + i * 0.15, m));
-  say(`${T.mat.name}. ${c.stock[T.mat.id]} in stock.`);
+  say(`${T.mat.name}: ${c.stock[T.mat.id]} found. Type: ${T.mat.type}.`);
   pending++;
   setTimeout(() => { pending--; if (S.running) refill(); }, 1500);
 }
@@ -522,7 +542,7 @@ function frame(now) {
   tick();
   const parts = [];
   const earned = Math.floor(G.money - before.money);
-  if (earned > 0) parts.push(`${earned} money`);
+  if (earned > 0) parts.push(`${earned} credits`);
   G.colonies.forEach((c, i) => {
     for (const id in c.stock) {
       const got = c.stock[id] - before.stock[i][id];
@@ -540,7 +560,7 @@ function frame(now) {
 setInterval(() => {
   tick();
   if (screen === 'colony') refreshColony();
-  if (screen === 'menu') $('menuMoney').textContent = `Money: ${money()}`;
+  if (screen === 'menu') $('menuMoney').textContent = `Credits: ${money()}`;
 }, 1000);
 setInterval(save, 5000);
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') save(); });

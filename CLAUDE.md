@@ -75,11 +75,19 @@ control that VoiceOver can step through.
   produce a small amount of credits per person in that colony.
   Built in colony v3: four material types, each with its own workplace
   (1 worker): metal = mine, wood = lumber camp, stone = quarry, fiber =
-  tailor (placeholder name; masonry and tailor are really processing steps:
-  masonry makes bricks from stone, tailor works fiber). All four on every planet, sometimes a second of one. Sound kinds:
+  fiber farm. Masonry (stone -> bricks) and tailor (fiber -> cloth/rope) are
+  processing steps, like forges. All four on every planet, sometimes a second of one. Sound kinds:
   wood pluck, stone thud, metal FM, fiber breathy noise (learnable by ear), cabins (wood + stone), houses, shopping
   centers (no workers; credits per person), workplaces staffed in material order (placeholder). Pickup speech: "Zate: 3 found. Type:
   metal." UI says credits, not money. Forges and factories not built yet.
+- Field (v5) follows E.X.O.'s rules: the surface is cut into 50 m chunks;
+  each chunk's 0-3 clustered materials come from the planet seed plus the
+  chunk position, so the world is fixed and endless. Only items within 70 m
+  play, fading to silence at the edge. Collected items are saved per chunk
+  (colony.field.collected) and never return, so you clear an area and move
+  on. Your field position is saved per colony. The old Sounds slider is gone.
+- Mech footsteps (v5): servo whine, deep thud, metal clank, ground crunch,
+  every 2.4 m, left/right feet alternate in stereo.
 - The mech builds (v4): each build plays a hydraulic hiss, heavy clanks
   (more for bigger buildings) and a thump; jobs queue one at a time and the
   announcement waits for the work sound.

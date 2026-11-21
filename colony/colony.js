@@ -68,7 +68,7 @@ function makePlanet(seed) {
 // each material unique.
 const TYPE_SOUND = { wood: 'pluck', stone: 'thud', metal: 'fm', fiber: 'noise' };
 // Each type has its own workplace, which needs 1 worker.
-const WORKPLACE = { metal: 'mine', wood: 'lumber camp', stone: 'quarry', fiber: 'tailor' }; // tailor: placeholder until Blake names the fiber gatherer
+const WORKPLACE = { metal: 'mine', wood: 'lumber camp', stone: 'quarry', fiber: 'fiber farm' };
 function makeSound(r, kind) {
   const semis = [0, 3, 5, 7, 10, 12, 15, 17, 19, 22, 24];
   return {
@@ -160,7 +160,21 @@ const KINDS = {
 function playMat(s, out, t, mul = 1) {
   for (let k = 0; k < s.hits; k++) KINDS[s.kind](out, t + k * s.gap, s.f * mul * s.step ** k, s);
 }
-const footstep = back => { const t = ctx.currentTime; noiseSrc(t, 0.1, filt('bandpass', back ? 180 : 320, 1, env(t, 0.003, 0.08, 0.5, master))); };
+// A giant robot's footstep: a servo whine as the leg moves, then a deep
+// thud, a metal clank and a ground crunch. Left and right feet alternate
+// slightly in the stereo field. Walking backward has a higher whine.
+let stepSide = 1;
+function footstep(back) {
+  const t = ctx.currentTime; stepSide = -stepSide;
+  const pan = new StereoPannerNode(ctx, { pan: stepSide * 0.25 }); pan.connect(master);
+  const wf = back ? 340 : 260;
+  const w = osc('sawtooth', wf, t, 0.18, filt('lowpass', 900, 1, env(t, 0.03, 0.12, 0.03, pan)));
+  w.frequency.setValueAtTime(wf, t); w.frequency.linearRampToValueAtTime(wf * 0.78, t + 0.15);
+  const ti = t + 0.16;
+  KINDS.thud(pan, ti, 45, { decay: 0.35 });
+  playMat({ kind: 'fm', f: 95 * (stepSide > 0 ? 1 : 1.06), ratio: 1.41, decay: 0.18, hits: 1, gap: 0, step: 1, bright: 0.7, rough: 0 }, pan, ti);
+  noiseSrc(ti, 0.12, filt('lowpass', 500, 0.7, env(ti, 0.002, 0.1, 0.6, pan)));
+}
 const turnTick = () => { const t = ctx.currentTime; osc('sine', 1400, t, 0.04, env(t, 0.001, 0.02, 0.05, master)); };
 function dirCue(dir) {
   const t = ctx.currentTime, [a, b] = dir > 0 ? [440, 660] : [660, 440];
@@ -375,9 +389,9 @@ $('startOver').addEventListener('click', () => {
 });
 
 // ---------- settings ----------
-const S = { x: 0, y: 0, h: 0, targets: [], running: false, mode: 'hold', count: 4 };
+const S = { x: 0, y: 0, h: 0, running: false, mode: 'hold' };
 window.__field = S;
-try { S.mode = localStorage.getItem('chase:mode') || 'hold'; S.count = +(localStorage.getItem('chase:count') || 4); } catch {}
+try { S.mode = localStorage.getItem('chase:mode') || 'hold'; } catch {}
 let hold = null;
 function setMode(m) {
   S.mode = m; hold = null;
@@ -389,27 +403,57 @@ for (const r of document.querySelectorAll('input[name=mode]')) {
   r.addEventListener('change', () => r.checked && setMode(r.value));
 }
 setMode(S.mode);
-const countEl = $('count');
-countEl.value = S.count;
-const countText = () => countEl.setAttribute('aria-valuetext', `${S.count} sound${S.count === 1 ? '' : 's'}`);
-countText();
-countEl.addEventListener('input', () => {
-  S.count = +countEl.value; countText();
-  try { localStorage.setItem('chase:count', S.count); } catch {}
-});
 
-// ---------- the field ----------
+// ---------- the field: an endless world in chunks ----------
+// Like E.X.O.: the planet's surface is cut into squares (chunks). Each
+// chunk's materials come from the planet seed plus the chunk's position, so
+// the world is fixed and endless. Only materials within hearing range make
+// sound; they fade to silence at the edge. Collected ones stay collected, so
+// you can clear one area, then move on and find more.
 const WALK = 3, BACK = 2, MAX_TURN = 120, STEP = 2, STEP_TURN = 30, REACH = 2.5;
-let pending = 0, wake = null, last = 0, tickAcc = 0, stepAcc = 0;
+const CHUNK = 50;        // metres per chunk side (PLACEHOLDER)
+const HEAR = 70;         // metres: hearing range, silent beyond (PLACEHOLDER)
+const MAX_PER_CHUNK = 3; // most chunks have 0 or 1; a few have 2 or 3
+const STRIDE = 2.4;      // metres per mech footstep
+let wake = null, last = 0, tickAcc = 0, stepAcc = 0;
+const chunkCache = new Map(); // "cx,cy" -> generated items for this planet
+const active = new Map();     // item key -> playing sound
+window.__active = active;     // for automated checks
+
+const mix = (...n) => n.reduce((h, v) => Math.imul(h ^ (v | 0), 0x9E3779B1) ^ (h >>> 15), 0x2545F491) >>> 0;
+function chunkItems(c, cx, cy) {
+  const k = `${cx},${cy}`;
+  if (chunkCache.has(k)) return chunkCache.get(k);
+  const r = rng(mix(c.planet.seed, cx, cy));
+  let n = Math.round(MAX_PER_CHUNK * r() ** 2.5);
+  if (cx === 0 && cy === 0) n = Math.max(n, 2); // something to hear on landing
+  // Clustered: items sit around one point in the chunk.
+  const ccx = (cx + 0.25 + r() * 0.5) * CHUNK, ccy = (cy + 0.25 + r() * 0.5) * CHUNK;
+  const mats = c.planet.materials;
+  let total = 0; for (const m of mats) total += ABUNDANCE_WEIGHT[m.abundance];
+  const items = [];
+  for (let i = 0; i < n; i++) {
+    const ri = rng(mix(c.planet.seed, cx, cy, i + 1));
+    const ang = ri() * Math.PI * 2, d = 4 + ri() * 14;
+    let roll = ri() * total, mat = mats[0];
+    for (const m of mats) { roll -= ABUNDANCE_WEIGHT[m.abundance]; if (roll < 0) { mat = m; break; } }
+    items.push({ key: `${k}:${i}`, chunk: k, i, x: ccx + Math.cos(ang) * d, y: ccy + Math.sin(ang) * d, mat });
+  }
+  chunkCache.set(k, items);
+  return items;
+}
 
 async function enterField() {
   await ensureAudio();
   if (S.mode === 'tilt' || S.mode === 'compass') await askMotion();
+  const c = cur();
+  c.field ??= { x: CHUNK / 2, y: CHUNK / 2, h: 0, collected: {} }; // first landing: middle of the first chunk
   show('field');
-  $('fieldTitle').textContent = `${cur().planet.name} surface`;
-  S.x = S.y = S.h = 0; S.targets = []; pending = 0; S.running = true;
+  $('fieldTitle').textContent = `${c.planet.name} surface`;
+  S.x = c.field.x; S.y = c.field.y; S.h = c.field.h; S.running = true;
+  chunkCache.clear();
   recenter();
-  spawn(true); refill();
+  stream();
   // Not awaited: the sounds must not wait on the screen-awake request.
   navigator.wakeLock?.request('screen').then(w => { wake = w; }, () => {});
   last = performance.now();
@@ -417,53 +461,59 @@ async function enterField() {
 }
 function stopField() {
   S.running = false; hold = null;
-  for (const T of S.targets) T.panner.disconnect();
-  S.targets = [];
+  const c = cur();
+  if (c?.field) { c.field.x = S.x; c.field.y = S.y; c.field.h = S.h; save(); } // come back where you left
+  for (const A of active.values()) A.out.disconnect();
+  active.clear();
   wake?.release(); wake = null;
 }
 
-function spawn(first) {
-  const mats = cur().planet.materials;
-  let total = 0; for (const m of mats) total += ABUNDANCE_WEIGHT[m.abundance];
-  let roll = Math.random() * total, mat = mats[0];
-  for (const m of mats) { roll -= ABUNDANCE_WEIGHT[m.abundance]; if (roll < 0) { mat = m; break; } }
-  let x, y;
-  for (let tries = 0; tries < 10; tries++) {
-    const ang = (first ? S.h : Math.random() * 360) * Math.PI / 180;
-    const dist = first ? 20 : 25 + Math.random() * 35;
-    x = S.x + Math.sin(ang) * dist; y = S.y + Math.cos(ang) * dist;
-    if (first || S.targets.every(o => Math.hypot(o.x - x, o.y - y) > 12)) break;
-  }
-  const panner = new PannerNode(ctx, { panningModel: 'HRTF', distanceModel: 'inverse', refDistance: 5, rolloffFactor: 1, maxDistance: 200 });
-  panner.connect(master);
-  const lp = filt('lowpass', 20000, 0.7, panner);
-  S.targets.push({ x, y, mat, panner, lp, rate: 0.9 + Math.random() * 0.2, nextPing: ctx.currentTime + 0.3 + Math.random() * 1.2 });
+// Start sounds that came into range; stop ones that went out of it.
+function stream() {
+  const c = cur(), got = c.field.collected, reach = Math.ceil(HEAR / CHUNK);
+  const pcx = Math.floor(S.x / CHUNK), pcy = Math.floor(S.y / CHUNK);
+  const near = new Set();
+  for (let cx = pcx - reach; cx <= pcx + reach; cx++)
+    for (let cy = pcy - reach; cy <= pcy + reach; cy++)
+      for (const it of chunkItems(c, cx, cy)) {
+        if (got[it.chunk]?.includes(it.i)) continue;
+        if (Math.hypot(it.x - S.x, it.y - S.y) > HEAR) continue;
+        near.add(it.key);
+        if (!active.has(it.key)) {
+          const out = ctx.createGain(); out.gain.value = 0; out.connect(master);
+          const panner = new PannerNode(ctx, { panningModel: 'HRTF', distanceModel: 'inverse', refDistance: 5, rolloffFactor: 1 });
+          panner.connect(out);
+          const lp = filt('lowpass', 20000, 0.7, panner);
+          active.set(it.key, { it, out, panner, lp, rate: 0.9 + Math.random() * 0.2, nextPing: ctx.currentTime + Math.random() * 1.2 });
+        }
+      }
+  for (const [k, A] of active) if (!near.has(k)) { A.out.disconnect(); active.delete(k); }
 }
-function refill() { while (S.targets.length + pending < S.count) spawn(false); }
 
 function updateTargets() {
+  stream();
   const h = S.h * Math.PI / 180, now = ctx.currentTime;
-  for (const T of [...S.targets]) {
-    const rx = T.x - S.x, ry = T.y - S.y, dist = Math.hypot(rx, ry);
-    if (dist < REACH) { collect(T); continue; }
+  for (const A of [...active.values()]) {
+    const T = A.it, rx = T.x - S.x, ry = T.y - S.y, dist = Math.hypot(rx, ry);
+    if (dist < REACH) { collect(A); continue; }
     const fwd = rx * Math.sin(h) + ry * Math.cos(h), right = rx * Math.cos(h) - ry * Math.sin(h);
-    T.panner.positionX.setTargetAtTime(right, now, 0.03);
-    T.panner.positionY.setTargetAtTime(0, now, 0.03);
-    T.panner.positionZ.setTargetAtTime(-fwd, now, 0.03);
-    T.lp.frequency.setTargetAtTime(700 * 28 ** ((fwd / dist + 1) / 2), now, 0.05); // behind = muffled
-    const gap = Math.min(1.4, 0.5 + dist / 60) * T.rate; // faster as you close in
-    while (T.nextPing < now + 0.15) { playMat(T.mat.sound, T.lp, Math.max(T.nextPing, now)); T.nextPing += gap; }
+    A.panner.positionX.setTargetAtTime(right, now, 0.03);
+    A.panner.positionY.setTargetAtTime(0, now, 0.03);
+    A.panner.positionZ.setTargetAtTime(-fwd, now, 0.03);
+    A.lp.frequency.setTargetAtTime(700 * 28 ** ((fwd / dist + 1) / 2), now, 0.05); // behind = muffled
+    A.out.gain.setTargetAtTime(Math.max(0, 1 - dist / HEAR) ** 1.5, now, 0.1);     // fades to silence at the edge
+    const gap = Math.min(1.4, 0.5 + dist / 60) * A.rate; // faster as you close in
+    while (A.nextPing < now + 0.15) { playMat(T.mat.sound, A.lp, Math.max(A.nextPing, now)); A.nextPing += gap; }
   }
 }
-function collect(T) {
-  S.targets.splice(S.targets.indexOf(T), 1);
-  T.panner.disconnect();
-  const c = cur(); c.stock[T.mat.id]++; save();
+function collect(A) {
+  const T = A.it, c = cur();
+  A.out.disconnect(); active.delete(T.key);
+  (c.field.collected[T.chunk] ??= []).push(T.i);
+  c.stock[T.mat.id]++; save();
   const t = ctx.currentTime;
   [1, 1.25, 1.5].forEach((m, i) => playMat(T.mat.sound, master, t + i * 0.15, m));
   say(`${T.mat.name}: ${c.stock[T.mat.id]} found. Type: ${T.mat.type}.`);
-  pending++;
-  setTimeout(() => { pending--; if (S.running) refill(); }, 1500);
 }
 
 function turnBy(deg) {
@@ -473,7 +523,7 @@ function turnBy(deg) {
 function moveBy(m) {
   const h = S.h * Math.PI / 180;
   S.x += Math.sin(h) * m; S.y += Math.cos(h) * m; stepAcc += Math.abs(m);
-  if (stepAcc >= 1.4) { stepAcc = 0; footstep(m < 0); }
+  if (stepAcc >= STRIDE) { stepAcc = 0; footstep(m < 0); }
 }
 
 const orient = { beta: 0, gamma: 0, compass: null }, neutral = { beta: 0, gamma: 0, compass: 0 };
@@ -528,7 +578,7 @@ function stepper(sl, act) {
     sl.setAttribute('aria-valuetext', act(v === 2 ? 1 : -1)); sl.value = 1;
   });
 }
-const doStep = d => { stepAcc = 0; moveBy(d * STEP); updateTargets(); return d > 0 ? 'Forward' : 'Back'; };
+const doStep = d => { stepAcc = STRIDE; moveBy(d * STEP); updateTargets(); return d > 0 ? 'Forward' : 'Back'; };
 const doTurn = d => { turnBy(d * STEP_TURN); updateTargets(); return d > 0 ? 'Right' : 'Left'; };
 stepper($('walkSlider'), doStep);
 stepper($('turnSlider'), doTurn);

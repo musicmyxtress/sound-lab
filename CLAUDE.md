@@ -74,11 +74,15 @@ control that VoiceOver can step through.
   construction easier than crafting everything individually. Shopping centers
   produce a small amount of credits per person in that colony.
   Built in colony v3: four material types, each with its own workplace
-  (1 worker): metal = mine, wood = lumber camp, stone = masonry, fiber =
-  tailor. All four on every planet, sometimes a second of one. Sound kinds:
+  (1 worker): metal = mine, wood = lumber camp, stone = quarry, fiber =
+  tailor (placeholder name; masonry and tailor are really processing steps:
+  masonry makes bricks from stone, tailor works fiber). All four on every planet, sometimes a second of one. Sound kinds:
   wood pluck, stone thud, metal FM, fiber breathy noise (learnable by ear), cabins (wood + stone), houses, shopping
   centers (no workers; credits per person), workplaces staffed in material order (placeholder). Pickup speech: "Zate: 3 found. Type:
   metal." UI says credits, not money. Forges and factories not built yet.
+- The mech builds (v4): each build plays a hydraulic hiss, heavy clanks
+  (more for bigger buildings) and a thump; jobs queue one at a time and the
+  announcement waits for the work sound.
 - Decided: workers fill the chain in order (mines, then forges, then
   factories); each factory makes one chosen product, switchable any time;
   no roads, because building is menu-based, not spatial.

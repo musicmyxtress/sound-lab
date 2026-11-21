@@ -68,7 +68,7 @@ function makePlanet(seed) {
 // each material unique.
 const TYPE_SOUND = { wood: 'pluck', stone: 'thud', metal: 'fm', fiber: 'noise' };
 // Each type has its own workplace, which needs 1 worker.
-const WORKPLACE = { metal: 'mine', wood: 'lumber camp', stone: 'masonry', fiber: 'tailor' };
+const WORKPLACE = { metal: 'mine', wood: 'lumber camp', stone: 'quarry', fiber: 'tailor' }; // tailor: placeholder until Blake names the fiber gatherer
 function makeSound(r, kind) {
   const semis = [0, 3, 5, 7, 10, 12, 15, 17, 19, 22, 24];
   return {
@@ -168,6 +168,23 @@ function dirCue(dir) {
   osc('triangle', b, t + 0.09, 0.08, env(t + 0.09, 0.005, 0.07, 0.15, master));
 }
 const stopCue = () => { const t = ctx.currentTime; osc('triangle', 330, t, 0.06, env(t, 0.005, 0.05, 0.1, master)); };
+
+// The mech at work: a hydraulic hiss, heavy clanks (more for bigger
+// buildings), then a settling thump. Jobs queue up, one building at a time.
+// Returns seconds from now until this job is finished.
+const HEAVY = { sound: { kind: 'fm', f: 70, ratio: 1.41, decay: 0.25, hits: 1, gap: 0, step: 1, bright: 0.9, rough: 0 } };
+let mechBusyUntil = 0;
+function mechBuild(clanks) {
+  const t = Math.max(ctx.currentTime + 0.05, mechBusyUntil);
+  const hiss = filt('bandpass', 400, 3, env(t, 0.15, 0.45, 1.2, master));
+  hiss.frequency.setValueAtTime(400, t); hiss.frequency.exponentialRampToValueAtTime(1600, t + 0.5);
+  noiseSrc(t, 0.6, hiss);
+  for (let i = 0; i < clanks; i++) playMat(HEAVY.sound, master, t + 0.5 + i * 0.32, 1 + (i % 2) * 0.12);
+  const end = t + 0.5 + clanks * 0.32;
+  KINDS.thud(master, end, 55, { decay: 0.4 });
+  mechBusyUntil = end + 0.5;
+  return end + 0.4 - ctx.currentTime;
+}
 
 // ---------- economy: every colony earns in real time ----------
 // While the page is open this runs every second; after time away the gap is
@@ -307,16 +324,21 @@ function build(c, item) {
     return say(`Need ${short}.`);
   }
   for (const [id, n] of Object.entries(item.cost)) c.stock[id] -= n;
-  if (item.key === 'cabin') { c.cabins++; say(`Cabin built. ${count(people(c), 'colonist')}.`); }
-  else if (item.key === 'house') { c.houses++; say(`House built. ${count(people(c), 'colonist')}.`); }
+  let msg;
+  if (item.key === 'cabin') { c.cabins++; msg = `Cabin built. ${count(people(c), 'colonist')}.`; }
+  else if (item.key === 'house') { c.houses++; msg = `House built. ${count(people(c), 'colonist')}.`; }
   else if (item.key === 'center') {
     c.centers++;
-    say(people(c) ? 'Shopping center built.' : 'Shopping center built. It earns once people live here.');
+    msg = people(c) ? 'Shopping center built.' : 'Shopping center built. It earns once people live here.';
   } else {
     const id = item.key.slice(5); c.mines[id] = (c.mines[id] || 0) + 1;
-    say(staffedMines(c) < totalMines(c) ? `${cap1(item.label)} built, but it needs a worker. Build a cabin or house.` : `${cap1(item.label)} built.`);
+    msg = staffedMines(c) < totalMines(c) ? `${cap1(item.label)} built, but it needs a worker. Build a cabin or house.` : `${cap1(item.label)} built.`;
   }
   save(); refreshColony();
+  // The mech builds it: bigger buildings take more clanks. The announcement
+  // waits until the work sound ends.
+  const clanks = Math.min(6, 2 + Math.floor(Object.values(item.cost).reduce((a, b) => a + b, 0) / 6));
+  ensureAudio().then(() => setTimeout(() => say(msg), Math.max(0, mechBuild(clanks) * 1000 - 700)), () => say(msg));
 }
 
 // ---------- menu actions ----------

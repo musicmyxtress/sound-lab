@@ -17,18 +17,28 @@
 // shared scale player (lab/player.js) drives.
 
 // --- Objects: mode pitch ratios and strengths (Fletcher & Rossing, rounded) ---
+// `ratios` are the raw object (Overtone tuning "wild"); `tuned` are where
+// Overtone tuning "in tune" puts each mode: whole multiples of the note, so
+// chords don't clash. The bar's tuned set is a marimba's (1, 4, 10); the bell
+// keeps its hum an octave down; the glass keeps its twins, now a gentle chorus.
+// `note` is the mode that sounds the note itself (the bow locks onto it).
+const harmonics = n => Array.from({ length: n }, (_, i) => i + 1);
 const OBJECTS = [
   null, // index 0 is "None" for the second object
-  { name: 'string', ratios: Array.from({ length: 16 }, (_, i) => i + 1),
+  { name: 'string', ratios: harmonics(16), tuned: harmonics(16), note: 0,
     strengths: Array.from({ length: 16 }, (_, i) => 1 / (i + 1)) },
   { name: 'bar', ratios: [1, 2.756, 5.404, 8.933, 13.344, 18.638, 24.81, 31.87],
+    tuned: [1, 4, 10, 16, 20, 24, 32, 40], note: 0,
     strengths: [1, 0.6, 0.42, 0.3, 0.22, 0.16, 0.12, 0.09] },
   { name: 'bell', ratios: [0.5, 1, 1.183, 1.506, 2, 2.514, 2.662, 3.011, 4.166, 5.433, 6.796, 8.215],
+    tuned: [0.5, 1, 1.5, 2, 3, 4, 5, 6, 8, 10, 12, 16], note: 1,
     strengths: [0.6, 0.8, 0.7, 0.4, 1, 0.5, 0.5, 0.4, 0.3, 0.25, 0.2, 0.15] },
   { name: 'plate', ratios: [1, 1.59, 2.14, 2.3, 2.65, 2.92, 3.16, 3.5, 3.6, 4.06, 4.15, 4.64, 5, 5.27],
+    tuned: harmonics(14), note: 0,
     strengths: [1, 0.8, 0.7, 0.65, 0.55, 0.5, 0.45, 0.4, 0.38, 0.33, 0.3, 0.27, 0.24, 0.2] },
   // Glass: near-twin modes beat against each other, the shimmer of a wine glass.
   { name: 'glass bowl', ratios: [1, 1.003, 2.32, 2.326, 4.25, 4.262, 6.63, 9.38],
+    tuned: [1, 1.003, 2, 2.006, 4, 4.012, 6, 8], note: 0,
     strengths: [1, 0.8, 0.5, 0.4, 0.3, 0.25, 0.2, 0.1] },
 ];
 const MAX_MODES = 16;
@@ -57,6 +67,11 @@ function material(m) { // m 0..1; log-interpolated between neighbours
 const CHANGE_RANGE = [0.05, 5];
 const changeSeconds = pos => CHANGE_RANGE[0] * Math.pow(CHANGE_RANGE[1] / CHANGE_RANGE[0], pos / 100);
 
+// How hard the bow grips. 0.5 gripped so hard that each grab-and-slip took
+// longer than the object's own vibration: bowed notes came out 1 to 8
+// semitones flat. At 0.03 the object leads and every bowed note is in tune
+// (measured in Node across all five objects).
+const BOW_GRIP = 0.03;
 const UPDATE = 32;       // recompute mode pitches and fades every 32 samples
 const MODE_CAP = 1.2;    // a mode never grows past this (keeps Swell and coupling safe)
 const CAP2 = MODE_CAP * MODE_CAP;
@@ -74,14 +89,17 @@ class Body {
   // Choose the object; weights follow the strike position (a comb, as on a
   // string: striking at a node leaves that mode silent) and are normalised so
   // every object comes out about equally loud.
-  shape(obj, stiffness, position, f0, sr) {
+  shape(obj, tuning, stiffness, position, f0, sr) {
     if (!obj) { this.n = 0; return; }
     this.n = Math.min(obj.ratios.length, MAX_MODES);
+    this.noteMode = obj.note;
     let sum = 0;
     for (let k = 0; k < this.n; k++) {
       // Stiffness bends the ratios: above 0 stretches the overtones apart,
       // below 0 squeezes them together (no real object does that).
-      const r = Math.pow(obj.ratios[k], 1 + stiffness);
+      // Tuning blends wild to tuned by multiplying, so it sweeps evenly by ear.
+      const blended = obj.ratios[k] * Math.pow(obj.tuned[k] / obj.ratios[k], tuning);
+      const r = Math.pow(blended, 1 + stiffness);
       this.ratio[k] = r;
       const comb = 0.15 + 0.85 * Math.abs(Math.sin(Math.PI * (k + 1) * position));
       let w = obj.strengths[k] * comb;
@@ -154,9 +172,9 @@ class Voice {
     this.reshape(P);
   }
   reshape(P) {
-    this.a.shape(P.objA, P.stiffness, P.position, this.f0, this.sr);
+    this.a.shape(P.objA, P.tuning, P.stiffness, P.position, this.f0, this.sr);
     this.fB = this.f0 * P.tuneB;
-    this.b.shape(P.objB, P.stiffness, P.position, this.fB, this.sr);
+    this.b.shape(P.objB, P.tuning, P.stiffness, P.position, this.fB, this.sr);
     this.count = 0;
   }
   stop() { this.held = false; }
@@ -185,8 +203,14 @@ class Voice {
       const rate = this.held ? 1 / (0.06 * sr) : 1 / (0.03 * sr);
       this.bowEnv = target > this.bowEnv ? Math.min(this.bowEnv + rate, 1) : Math.max(this.bowEnv - rate, 0);
       if (this.bowEnv > 0) {
-        const dv = P.bowSpeed * this.bowEnv - this.lastA;
-        F = dv * bowFriction(dv, P.pressure) * 0.5;
+        // The bow feels only the note's own mode. Feeling every mode let
+        // several compete for the grip, and a bell or bar could start on the
+        // note and switch to another partway through (Blake heard it).
+        // Its push still reaches every mode, so they colour the sound.
+        const k = this.a.noteMode;
+        const v = this.a.w[k] * this.a.zr[k];
+        const dv = P.bowSpeed * this.bowEnv - v;
+        F = dv * bowFriction(dv, P.pressure) * BOW_GRIP;
       }
     } else if (this.contact > 0) {
       // A raised-cosine push: short for a hard mallet (bright), long for soft (dull).
@@ -211,7 +235,7 @@ class Synth {
     this.voices = Array.from({ length: 16 }, () => new Voice(sr));
     this.counter = 0;
     this.params = {
-      exciter: 0, object: 1, material: 70, stiffness: 0, hardness: 60, position: 22,
+      exciter: 0, object: 1, tuning: 100, material: 70, stiffness: 0, hardness: 60, position: 22,
       pressure: 50, bowSpeed: 50, damper: 20,
       drift: 0, change: 50, melt: 0, swell: 0,
       second: 0, tuneB: 7, couple: 30, level: -12,
@@ -229,11 +253,12 @@ class Synth {
     P.objB = OBJECTS[p.second];
     P.material = p.material / 100;
     P.stiffness = p.stiffness / 100;
+    P.tuning = p.tuning / 100;
     P.position = 0.03 + 0.47 * (p.position / 100);
     // Hardness: 6 ms felt down to 0.1 ms steel.
     P.contactSec = 0.006 * Math.pow(0.1 / 6, p.hardness / 100);
     P.pressure = p.pressure / 100;
-    P.bowSpeed = 0.03 + 0.27 * (p.bowSpeed / 100);
+    P.bowSpeed = 0.1 + 0.2 * (p.bowSpeed / 100);
     // Damper: how hard letting go of the key stops the ring; 100% stops it in 50 ms.
     P.damperSigma = Math.pow(p.damper / 100, 2) * 6.91 / 0.05;
     P.drift = p.drift;
@@ -260,7 +285,7 @@ class Synth {
     this.params[id] = value;
     this.update();
     // Object, stiffness, position and second object change the mode layout.
-    if (['object', 'stiffness', 'position', 'second', 'tuneB'].includes(id)) {
+    if (['object', 'tuning', 'stiffness', 'position', 'second', 'tuneB'].includes(id)) {
       for (const v of this.voices) if (v.active) v.reshape(this.P);
     }
   }

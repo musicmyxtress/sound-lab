@@ -31,9 +31,29 @@ what would happen", as the Modular Synth in Tonic did.
 - Safety: every mode is capped at 1.2, there's a soft ceiling above 0.7
   like the synth lab, and a NaN clears all voices. 16 voices; it steals the
   oldest let-go voice.
-- Measured in Node before publishing: 1-5% of one core, no NaN anywhere. A
-  bowed string sings at its note (261 Hz for C4). A bowed bar tends to lock
-  onto its second mode, as real bowed bars sometimes do; left in.
+- Measured in Node: 1-5% of one core, no NaN anywhere. (Version 1's bow
+  checks used a rough pitch measure and missed that bowed notes were flat;
+  see version 2. Use a spectrum, not autocorrelation, to check pitch.)
+
+## Version 2 (2026-11-22), after Blake's first listen
+
+- Blake: overtones sounded ugly on everything but String, and a bowed bell
+  "no longer sounded like it could carry a tune": it "starts to play the
+  note, then changes its mind halfway through". He wants the clatter kept
+  as an option ("metallic or even magical sounds for games").
+- **Overtone tuning** (0 wild, 100 in tune, default in tune): each mode's
+  ratio blends from the raw object (`ratios`) to `tuned` by multiplying.
+  Tuned sets are whole multiples: bar 1, 4, 10 (marimba), bell keeps its hum
+  an octave down and a fifth at 1.5, glass keeps its 0.3% twins.
+- **Bow reads only the note's mode** (`note` in OBJECTS). Reading every mode
+  let them compete for the grip; the switch mid-note was that.
+- **Bow grip 0.5 → 0.03** (`BOW_GRIP`): at 0.5 every bowed note came out 1
+  to 8 semitones flat (each grab-and-slip outlasted the object's vibration).
+  Measured: every object, wild or tuned, now bows on C4's harmonics.
+- Bow speed range 0.1 to 0.3 (was 0.03 to 0.3, whose bottom was silent).
+  High pressure with the lowest speed still won't start, as a real bow chokes.
+- Bowing makes even a wild object sound harmonic (the bow's push repeats at
+  the note), so wild mostly changes struck sounds and the bowed colour.
 
 ## Open
 

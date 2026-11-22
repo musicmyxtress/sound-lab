@@ -21,13 +21,15 @@ const hasSecond = { showIf: v => v.second !== 0 };
 createLab({
   id: 'objects-lab',
   title: 'Impossible objects',
-  version: 1,
-  engineUrl: new URL('./engine.js?v=1', import.meta.url).href,
+  version: 2,
+  engineUrl: new URL('./engine.js?v=2', import.meta.url).href,
   groups: [
     {
       name: 'Object',
       params: [
         { id: 'object', label: 'Object', choices: ['String', 'Bar', 'Bell', 'Plate', 'Glass bowl'], default: 1 },
+        { id: 'tuning', label: 'Overtone tuning', min: 0, max: 100, fine: 1, coarse: 10, default: 100,
+          format: v => (v === 100 ? 'in tune' : v === 0 ? 'wild' : `${v} percent in tune`) },
         { id: 'material', label: 'Material', min: 0, max: 100, fine: 1, coarse: 10, default: 70,
           format: v => `${materialWord(v)}, ${v}` },
         { id: 'stiffness', label: 'Overtone spread', min: -50, max: 50, fine: 1, coarse: 10, default: 0,

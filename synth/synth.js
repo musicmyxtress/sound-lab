@@ -1,4 +1,4 @@
-import { createLab } from '../lab/lab.js?v=4';
+import { createLab } from '../lab/lab.js?v=5';
 
 // Envelope sliders are positions 0-100 on a curved scale; engine.js turns
 // them into seconds with the same ranges. Keep TIME_RANGES matched.
@@ -38,7 +38,7 @@ const whenOn = { showIf: filterOn };
 createLab({
   id: 'synth-lab', // keeps saved spots from earlier versions
   title: 'Synth',
-  version: 4,
+  version: 5,
   engineUrl: new URL('./engine.js?v=4', import.meta.url).href,
   groups: [
     {

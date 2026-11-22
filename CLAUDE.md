@@ -136,7 +136,8 @@ control that VoiceOver can step through.
 ## iPhone audio
 
 - iOS suspends web audio when Safari is left and never resumes it. Both
-  game labs call wakeAudio() on visibilitychange, pageshow, focus and any
+  game labs and lab.js (every synth/effect lab, since 2026-11-22) call
+  wakeAudio() on visibilitychange, pageshow, focus and any
   tap (capture phase). Any new page with audio needs the same.
 
 ## Rules
@@ -161,3 +162,21 @@ control that VoiceOver can step through.
   tine overtones) that decay fast, plus a pluck click. Tuning sliders are
   saved in localStorage `sound-lab:fidget:v2`. v2 (Blake: kids should get excited): defaults 76 beats a minute, 30% faster per answer, so the levels are 76, 99, 128.
 - `window.__fidget` exposes state for Playwright checks.
+
+## Echo lab
+
+- `echo/` (started 2026-11-22) designs an echo/delay effect plugin, the next
+  VST after Prism. Uses lab.js and the scale player like the synth lab.
+- An effect needs input, so engine.js has two parts: `Source` voices
+  (Pluck, Bell, Soft keys) stand in for the track and are NOT the plugin;
+  the `Echo` class is the plugin and is what ports to C++. Its sliders sit
+  under "Test sound (not part of the plugin)".
+- Echo design (Claude's first sketch, every choice open to Blake): curved
+  echo time 10 ms to 2 s that glides when moved (tape-style pitch bend),
+  Repeats (feedback), Mix (both full at 50%), Tone (low-pass) and Low cut
+  (high-pass) inside the loop so repeats darken, Saturation (tanh in the
+  loop, always present, so 100% repeats can't run away), Wobble depth/speed
+  (two unsynced sines, up to 6 ms). Output has a soft ceiling above 0.8.
+- Mono only: the shared player writes one sample to both channels, and
+  player.js never changes. Stereo/ping-pong would need that rule revisited.
+- No tempo sync yet: the player's speed isn't sent to the engine.

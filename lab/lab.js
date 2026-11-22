@@ -109,6 +109,13 @@ export function createLab({ id, title, version, engineUrl, groups: synthGroups }
     play.textContent = playing ? 'Stop' : 'Play';
   };
   main.append(play);
+  // iOS suspends web audio when Safari is left and never resumes it on its
+  // own; wake it whenever the page comes back or is tapped.
+  const wakeAudio = () => { if (ctx && playing && ctx.state !== 'running') ctx.resume(); };
+  document.addEventListener('visibilitychange', wakeAudio);
+  window.addEventListener('pageshow', wakeAudio);
+  window.addEventListener('focus', wakeAudio);
+  document.addEventListener('pointerdown', wakeAudio, true);
 
   const stepBtn = $('button', { textContent: 'Step size: fine' });
   stepBtn.onclick = () => {

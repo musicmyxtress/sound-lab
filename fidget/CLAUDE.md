@@ -16,3 +16,9 @@ nodes, because the real kit's finale will be a web page like this one.
 - v2 (Blake: kids should get excited): defaults 76 beats a minute, 30%
   faster per answer, so the levels are 76, 99, 128.
 - `window.__fidget` exposes state for automated checks.
+- v3 (Blake's rules): a Wrong answer button giggles and drops the tune one
+  level (divide by the speed-up step), down to a 24 beats-a-minute crawl, no
+  lockout. A right answer speeds up one level, or if slowed, closes most of
+  the gap to where it should be (Catch-up slider, default 70%), never all of
+  it. The third answer never changes speed: the box waits for "POP!" however
+  slow the tune is.

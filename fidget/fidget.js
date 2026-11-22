@@ -4,7 +4,7 @@
 // The sound is built from browser audio nodes (no recording, no MIDI file), so
 // the page knows exactly where every note falls and can change speed mid-tune.
 
-const VERSION = 2;
+const VERSION = 3;
 const KEY = 'sound-lab:fidget:v2'; // v2 raised the speed defaults, so older saved sliders are dropped
 
 // "Pop Goes the Weasel" (traditional, free to use), C major, 6/8 time.
@@ -30,6 +30,7 @@ const SETTINGS = [
   { id: 'speedup', label: 'Speed-up per answer', min: 5, max: 60, step: 5, def: 30, say: v => `${v} percent faster` },
   { id: 'ring', label: 'Ring length', min: 2, max: 30, step: 1, def: 12, say: v => `${(v / 10).toFixed(1)} seconds` },
   { id: 'bright', label: 'Brightness', min: 0, max: 10, step: 1, def: 5, say: v => `${v} of 10` },
+  { id: 'catchup', label: 'Catch-up after mistakes', min: 30, max: 100, step: 10, def: 70, say: v => `closes ${v} percent of the gap` },
   { id: 'bass', label: 'Bass notes', min: 0, max: 10, step: 1, def: 4, say: v => (v ? `${v} of 10` : 'off') },
 ];
 const values = {};
@@ -179,13 +180,30 @@ function popSound(t) {
 }
 
 // ---- The tune ----
-const S = { playing: false, idx: 0, unit: 0, next: 0, eighth: 0, solved: new Set(), popPending: false, popped: false };
+const S = { playing: false, idx: 0, unit: 0, next: 0, eighth: 0, bpm: null, solved: new Set(), popPending: false, popped: false };
 let timer = 0;
+const SLOWEST = 24; // beats a minute: the crawl that endless wrong guesses reach
 
-// Seconds per eighth note. The third answer doesn't speed it up again: it
-// just makes the box wait for the next "POP!".
-const targetEighth = () =>
-  60 / (values.speed * (1 + values.speedup / 100) ** Math.min(S.solved.size, 2)) / 3;
+// The tune's speed. null means "not changed yet", so the Starting speed
+// slider still applies directly.
+const bpm = () => S.bpm ?? values.speed;
+const step = () => 1 + values.speedup / 100;
+const targetEighth = () => 60 / bpm() / 3; // seconds per eighth note
+
+// Blake's rules (version 3). A right answer speeds the tune up one level,
+// or, if wrong guesses slowed it down, closes most of the gap to where it
+// should be, but not all of it. The third answer doesn't speed it up: the box
+// waits for the next "POP!", however slow the tune is by then. A wrong answer
+// drops one level, as far as a crawl, with no lockout.
+function rightAnswer() {
+  const n = S.solved.size;
+  if (n >= 3) return;
+  const should = values.speed * step() ** n;
+  S.bpm = Math.max(bpm() * step(), bpm() + (should - bpm()) * values.catchup / 100);
+}
+function wrongAnswer() {
+  S.bpm = Math.max(SLOWEST, bpm() / step());
+}
 
 // Schedule notes a little ahead of time, so the timing stays exact even if
 // the page is busy. Speed changes glide in over a few notes.
@@ -248,6 +266,7 @@ for (const btn of document.querySelectorAll('.toy')) {
     if (S.popped) { say('Fidget already popped out. Choose Start over to play again.'); return; }
     if (S.solved.has(toy)) { say(`${toy} already solved.`); return; }
     S.solved.add(toy);
+    rightAnswer();
     updateCount();
     if (S.solved.size === 3) {
       S.popPending = true;
@@ -258,8 +277,39 @@ for (const btn of document.querySelectorAll('.toy')) {
   });
 }
 
+// A cartoon giggle: quick "hee-hee-hee" chirps, each sliding down in pitch,
+// through a vocal-ish band filter.
+function giggle(t) {
+  const bp = ctx.createBiquadFilter();
+  bp.type = 'bandpass'; bp.frequency.value = 1400; bp.Q.value = 2;
+  bp.connect(master);
+  for (let i = 0; i < 6; i++) {
+    const at = t + i * 0.1, f = 760 - i * 35;
+    const o = ctx.createOscillator();
+    o.type = 'sawtooth';
+    o.frequency.setValueAtTime(f * 1.25, at);
+    o.frequency.exponentialRampToValueAtTime(f, at + 0.07);
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0, at);
+    g.gain.linearRampToValueAtTime(0.35, at + 0.01);
+    g.gain.exponentialRampToValueAtTime(0.001, at + 0.08);
+    o.connect(g).connect(bp);
+    o.start(at); o.stop(at + 0.09);
+  }
+}
+
+$('wrong').addEventListener('click', async () => {
+  if (S.popped) { say('Fidget already popped out. Choose Start over to play again.'); return; }
+  await startAudio();
+  giggle(ctx.currentTime + 0.02);
+  const before = bpm();
+  wrongAnswer();
+  say(bpm() < before ? 'Wrong! Slower.' : "Wrong! It can't get any slower.", 1000);
+});
+
 $('reset').addEventListener('click', () => {
   stopTune();
+  S.bpm = null;
   S.solved.clear();
   S.popPending = false;
   S.popped = false;

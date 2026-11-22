@@ -159,5 +159,5 @@ control that VoiceOver can step through.
   sound and Fidget appear. The three Solve buttons stand in for real answers.
 - Music box tine = sine plus inharmonic partials at 6.27x and 17.55x (steel
   tine overtones) that decay fast, plus a pluck click. Tuning sliders are
-  saved in localStorage `sound-lab:fidget`.
+  saved in localStorage `sound-lab:fidget:v2`. v2 (Blake: kids should get excited): defaults 76 beats a minute, 30% faster per answer, so the levels are 76, 99, 128.
 - `window.__fidget` exposes state for Playwright checks.

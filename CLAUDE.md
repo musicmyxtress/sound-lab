@@ -128,6 +128,11 @@ control that VoiceOver can step through.
   E.X.O. cut JAWS off when announcing pickups and Blake wants that fixed.
 - `window.__chase` exposes game state for Playwright checks.
 
+- Turning (v10): max 70 deg/s with an eased curve (input^1.5) so small
+  tilts or drags turn slowly; a soft two-note chime plays when a sound comes
+  within 5 degrees of straight ahead. Fixes Blake swinging past sounds like
+  a pendulum.
+
 ## iPhone audio
 
 - iOS suspends web audio when Safari is left and never resumes it. Both

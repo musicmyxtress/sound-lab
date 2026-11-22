@@ -4,7 +4,7 @@
 // The sound is built from browser audio nodes (no recording, no MIDI file), so
 // the page knows exactly where every note falls and can change speed mid-tune.
 
-const VERSION = 4;
+const VERSION = 5;
 const KEY = 'sound-lab:fidget:v2'; // v2 raised the speed defaults, so older saved sliders are dropped
 
 // "Pop Goes the Weasel" (traditional, free to use), C major, 6/8 time.
@@ -26,12 +26,12 @@ const BASS = [60, 67, 60, 67, 55, 62, 60, 55, 60, 67, 60, 67, 65, 67, 60, 60];
 
 // Tuning sliders. Every value speaks as words, never a bare number.
 const SETTINGS = [
-  { id: 'speed', label: 'Starting speed', min: 40, max: 120, step: 2, def: 76, say: v => `${v} beats a minute` },
-  { id: 'speedup', label: 'Speed-up per answer', min: 5, max: 60, step: 5, def: 30, say: v => `${v} percent faster` },
+  { id: 'speed', label: 'Starting speed', min: 40, max: 120, step: 2, def: 96, say: v => `${v} beats a minute` },
+  { id: 'speedup', label: 'Speed-up per answer', min: 5, max: 60, step: 5, def: 35, say: v => `${v} percent faster` },
   { id: 'ring', label: 'Ring length', min: 2, max: 30, step: 1, def: 12, say: v => `${(v / 10).toFixed(1)} seconds` },
-  { id: 'bright', label: 'Brightness', min: 0, max: 10, step: 1, def: 5, say: v => `${v} of 10` },
-  { id: 'catchup', label: 'Catch-up after mistakes', min: 30, max: 100, step: 10, def: 70, say: v => `closes ${v} percent of the gap` },
-  { id: 'bass', label: 'Bass notes', min: 0, max: 10, step: 1, def: 4, say: v => (v ? `${v} of 10` : 'off') },
+  { id: 'bright', label: 'Brightness', min: 0, max: 10, step: 1, def: 6, say: v => `${v} of 10` },
+  { id: 'catchup', label: 'Catch-up after mistakes', min: 30, max: 100, step: 10, def: 60, say: v => `closes ${v} percent of the gap` },
+  { id: 'bass', label: 'Bass notes', min: 0, max: 10, step: 1, def: 3, say: v => (v ? `${v} of 10` : 'off') },
 ];
 const values = {};
 const saved = JSON.parse(localStorage.getItem(KEY) || '{}');

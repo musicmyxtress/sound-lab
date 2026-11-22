@@ -23,3 +23,4 @@ nodes, because the real kit's finale will be a web page like this one.
   it. The third answer never changes speed: the box waits for "POP!" however
   slow the tune is.
 - v4: Copy my settings button puts slider positions on the clipboard as words (textarea fallback), so Blake's tuning can become the defaults.
+- v5: Blake's tuning is the default (2026-11-22): starting speed 96, 35% faster per answer (levels 96, 130, 175), ring 1.2 s, brightness 6, catch-up 60%, bass 3. "Two out of three really goes fast" - kids SO CLOSE.

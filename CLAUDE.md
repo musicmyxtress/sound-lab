@@ -16,6 +16,7 @@ there. Put a lab's decisions in its own file, never here.
 |---|---|---|
 | `synth/` | Throw-away synth; its oscillators become the first test VST | slider lab |
 | `echo/` | Tape-style echo effect, the next VST after Prism | slider lab |
+| `objects/` | Impossible objects: struck or bowed bodies whose size and material change while they ring | slider lab |
 | `chase/` | Phone controls for an audio exploration game (E.X.O.-inspired) | game lab |
 | `colony/` | Space-colonization game sketch built on the chase field | game lab |
 | `fidget/` | Music-box finale page for the Tricky Toy Maker escape room | game lab |

@@ -146,3 +146,18 @@ control that VoiceOver can step through.
 - Pages stays unlisted: `noindex` meta on every page plus `robots.txt`.
 - Labs are throw-away sketches. The finished plugin is built separately
   (AudioPluginCoder, at the computer).
+
+## Jack-in-the-box lab
+
+- `fidget/` tests the finale of the Tricky Toy Maker, Blake's printable
+  Christmas escape room (plan: projects/TrickyToyMaker/IDEAS.md). Own
+  fidget.js and style.css; no lab.js or scale player. Browser audio nodes,
+  because the real kit's finale will be a web page like this one.
+- Blake's design: "Wind the handle" starts a music box looping "Pop Goes the
+  Weasel" (traditional). Each solved answer speeds it up; after the third the
+  tune plays on to the next "POP!" note (MELODY index 22), then the pop
+  sound and Fidget appear. The three Solve buttons stand in for real answers.
+- Music box tine = sine plus inharmonic partials at 6.27x and 17.55x (steel
+  tine overtones) that decay fast, plus a pluck click. Tuning sliders are
+  saved in localStorage `sound-lab:fidget`.
+- `window.__fidget` exposes state for Playwright checks.

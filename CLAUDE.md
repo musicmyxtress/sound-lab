@@ -86,6 +86,9 @@ control that VoiceOver can step through.
   they are waiting for. Houses and shopping centers now cost bricks;
   factories cost bricks and bars. Servos and motors have no use yet. All
   recipes and costs are PLACEHOLDERs. Goods live in colony.stock as g:*.
+- Shopping centers multiply on purpose: credits per minute = centers x
+  colonists (Blake's choice). Colonizing gets more expensive each time so a
+  player can't colonize everything (colonizeCost: free, then 100 x 2.5^n).
 - The field has its own Controls button (v7) cycling the four schemes; it
   stays put while the other controls swap, so VoiceOver focus holds. Settings
   still has the same choice.

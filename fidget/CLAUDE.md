@@ -22,3 +22,4 @@ nodes, because the real kit's finale will be a web page like this one.
   the gap to where it should be (Catch-up slider, default 70%), never all of
   it. The third answer never changes speed: the box waits for "POP!" however
   slow the tune is.
+- v4: Copy my settings button puts slider positions on the clipboard as words (textarea fallback), so Blake's tuning can become the defaults.

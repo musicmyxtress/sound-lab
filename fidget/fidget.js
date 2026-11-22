@@ -4,7 +4,7 @@
 // The sound is built from browser audio nodes (no recording, no MIDI file), so
 // the page knows exactly where every note falls and can change speed mid-tune.
 
-const VERSION = 3;
+const VERSION = 4;
 const KEY = 'sound-lab:fidget:v2'; // v2 raised the speed defaults, so older saved sliders are dropped
 
 // "Pop Goes the Weasel" (traditional, free to use), C major, 6/8 time.
@@ -337,6 +337,21 @@ for (const s of SETTINGS) {
   show();
   $('sliders').append(label);
 }
+
+// Copy the slider positions as readable words, so Blake can paste them to
+// Claude and they become the defaults.
+$('copy').addEventListener('click', async () => {
+  const text = `Jack-in-the-box lab, version ${VERSION}. ` +
+    SETTINGS.map(s => `${s.label}: ${s.say(values[s.id])}`).join('; ') + '.';
+  try {
+    await navigator.clipboard.writeText(text);
+    say('Settings copied.');
+  } catch {
+    const box = $('copied');
+    box.value = text; box.hidden = false; box.focus(); box.select();
+    say("Couldn't copy automatically. The settings are in the text box.");
+  }
+});
 
 // For automated checks.
 window.__fidget = { S, values, MELODY, POP_INDEX };

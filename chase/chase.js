@@ -328,9 +328,20 @@ let wake = null;
 async function keepAwake() {
   try { wake = await navigator.wakeLock?.request('screen'); } catch {}
 }
+// iPhone pauses web audio when you leave Safari; ask for it back on return
+// and on the next tap.
+function wakeAudio() {
+  if (!ctx) return;
+  if (navigator.audioSession) navigator.audioSession.type = 'playback';
+  if (S.running && ctx.state !== 'running') ctx.resume().catch(() => {});
+}
 document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'visible' && S.running) keepAwake();
+  if (document.visibilityState !== 'visible') return;
+  wakeAudio();
+  if (S.running) keepAwake();
 });
+addEventListener('pageshow', wakeAudio);
+for (const ev of ['pointerdown', 'touchend', 'click', 'keydown']) document.addEventListener(ev, wakeAudio, true);
 
 $('start').addEventListener('click', async () => {
   if (S.running) {

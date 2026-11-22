@@ -128,6 +128,12 @@ control that VoiceOver can step through.
   E.X.O. cut JAWS off when announcing pickups and Blake wants that fixed.
 - `window.__chase` exposes game state for Playwright checks.
 
+## iPhone audio
+
+- iOS suspends web audio when Safari is left and never resumes it. Both
+  game labs call wakeAudio() on visibilitychange, pageshow, focus and any
+  tap (capture phase). Any new page with audio needs the same.
+
 ## Rules
 
 - Bump the `?v=N` query strings and the lab's `version` on every change, so

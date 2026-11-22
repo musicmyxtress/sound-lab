@@ -802,4 +802,19 @@ setInterval(() => {
   if (screen === 'menu') $('menuMoney').textContent = `Credits: ${money()}`;
 }, 1000);
 setInterval(save, 5000);
-document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') save(); });
+// iPhone pauses web audio when you leave Safari and does not restart it.
+// Ask for it back when the page returns, and again on the next tap, since
+// iOS sometimes only allows the restart from a touch.
+function wakeAudio() {
+  if (!ctx) return;
+  if (navigator.audioSession) navigator.audioSession.type = 'playback';
+  if (ctx.state !== 'running') ctx.resume().catch(() => {});
+}
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'hidden') { save(); return; }
+  wakeAudio();
+  if (S.running && !wake) navigator.wakeLock?.request('screen').then(w => { wake = w; }, () => {}); // the screen lock is dropped on leaving
+});
+addEventListener('pageshow', wakeAudio);
+addEventListener('focus', wakeAudio);
+for (const ev of ['pointerdown', 'touchend', 'click', 'keydown']) document.addEventListener(ev, wakeAudio, true);

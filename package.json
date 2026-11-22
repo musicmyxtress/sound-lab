@@ -1,0 +1,12 @@
+{
+  "name": "sound-lab",
+  "private": true,
+  "description": "Blake's sound lab pages. The site needs no build; this file only runs the checks.",
+  "type": "module",
+  "scripts": {
+    "check": "node tests/check.mjs"
+  },
+  "devDependencies": {
+    "playwright-core": "^1.65.1"
+  }
+}

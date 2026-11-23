@@ -20,6 +20,7 @@ there. Put a lab's decisions in its own file, never here.
 | `chase/` | Phone controls for an audio exploration game (E.X.O.-inspired) | game lab |
 | `colony/` | Space-colonization game sketch built on the chase field | game lab |
 | `fidget/` | Music-box finale page for the Tricky Toy Maker escape room | game lab |
+| `nest/` | Tuneling Nest sketch: raise one Tuneling, hidden food tastes, moods | game lab |
 
 **Slider labs** use the shared builder and scale player below. **Game labs**
 have their own JS and `style.css`, never use lab.js or the scale player, and

@@ -50,6 +50,9 @@ may use browser audio nodes.
   jump.
 - Spoken announcements are polite and delayed about 700 ms, never clearing
   VoiceOver mid-sentence.
+- Never hide the control VoiceOver is on: move focus to its replacement
+  first, then hide it about 600 ms later, or VoiceOver jumps somewhere
+  random (nest/ version 2).
 - Live numbers update text in place; never rebuild buttons, or VoiceOver
   loses focus.
 

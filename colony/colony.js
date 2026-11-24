@@ -238,6 +238,7 @@ function migrate(c) {
   if (c.mineProg) { for (const id in c.mineProg) c.prog['mine:' + id] = c.mineProg[id]; delete c.mineProg; }
   for (const g in GOODS) c.stock[g] ??= 0;
   c.status ??= {};
+  c.paused ??= {}; // v11: 'forge', 'masonry', 'tailor' or 'fac:N' set to true
 }
 G.colonies.forEach(migrate);
 
@@ -246,8 +247,9 @@ function staffing(c) {
   let free = people(c);
   const mine = {}, proc = {}, fac = [];
   for (const m of c.planet.materials) { mine[m.id] = Math.min(c.mines[m.id] || 0, free); free -= mine[m.id]; }
-  for (const k in PROCESSORS) { proc[k] = Math.min(c.proc[k], Math.floor(free / 2)); free -= proc[k] * 2; }
-  for (let i = 0; i < c.factories.length; i++) { fac[i] = free >= 3; if (fac[i]) free -= 3; }
+  // Paused buildings send their workers home, so they can fill other jobs.
+  for (const k in PROCESSORS) { proc[k] = c.paused[k] ? 0 : Math.min(c.proc[k], Math.floor(free / 2)); free -= proc[k] * 2; }
+  for (let i = 0; i < c.factories.length; i++) { fac[i] = !c.paused['fac:' + i] && free >= 3; if (fac[i]) free -= 3; }
   return { mine, proc, fac, idle: free };
 }
 const gatherers = c => Object.values(c.mines).reduce((a, b) => a + b, 0);
@@ -273,7 +275,7 @@ function simulate(c, dt) {
     for (const k in PROCESSORS) {
       const P = PROCESSORS[k];
       c.prog[k] = (c.prog[k] || 0) + st.proc[k] * step / PROC_SECONDS;
-      c.status[k] = st.proc[k] ? 'running' : 'idle';
+      c.status[k] = c.paused[k] ? 'paused' : st.proc[k] ? 'running' : 'idle';
       while (c.prog[k] >= 1) {
         if (typeStock(c, P.input) < 2) { c.prog[k] = 1; c.status[k] = 'waiting for ' + P.input; break; }
         takeType(c, P.input, 2); c.stock[P.output]++; c.prog[k]--;
@@ -281,6 +283,7 @@ function simulate(c, dt) {
     }
     c.factories.forEach((prod, i) => {
       const R = PRODUCTS[prod], k = 'fac:' + i;
+      if (c.paused[k]) { c.status[k] = 'paused'; return; }
       if (!st.fac[i]) { c.status[k] = 'needs 3 workers'; return; }
       c.prog[k] = (c.prog[k] || 0) + step / FACTORY_SECONDS;
       c.status[k] = 'running';
@@ -378,8 +381,13 @@ const RENDER = {
     gd.append(el('li', { id: 'goods-none', textContent: 'None yet' }));
     for (const g in GOODS) gd.append(el('li', { id: 'goods-' + g.slice(2) }));
     const pr = $('production'); pr.replaceChildren();
-    pr.append(el('li', { id: 'prod-none', textContent: 'Nothing built yet' }));
-    for (const k in PROCESSORS) pr.append(el('li', { id: 'prod-' + k }));
+    pr.append(el('p', { id: 'prod-none', textContent: 'Nothing built yet' }));
+    for (const k in PROCESSORS) {
+      // One switch per kind: double tap pauses or restarts every forge (or masonry, or tailor).
+      const b = el('button', { id: 'prod-' + k });
+      b.addEventListener('click', () => togglePause(c, k));
+      pr.append(b);
+    }
     renderFactories(c);
     const bd = $('build'); bd.replaceChildren();
     let group = '';
@@ -418,8 +426,22 @@ function renderFactories(c) {
       c.prog['fac:' + i] = 0; save(); refreshColony();
       say(`Factory ${i + 1} now makes ${c.factories[i]}.`);
     });
-    box.append(b);
+    const p = el('button', { id: 'facpause-' + i, className: 'small' });
+    p.addEventListener('click', () => togglePause(c, 'fac:' + i));
+    box.append(b, p);
   });
+}
+
+// Pausing keeps a building's inputs in stock (for example stone for cabins
+// instead of bricks) and frees its workers for other jobs.
+function togglePause(c, k) {
+  c.paused[k] = !c.paused[k];
+  if (!c.paused[k]) delete c.paused[k];
+  c.status[k] = c.paused[k] ? 'paused' : 'running'; save(); refreshColony();
+  const P = PROCESSORS[k];
+  const name = P ? cap1(c.proc[k] === 1 ? P.label : P.plural) : `Factory ${+k.slice(4) + 1}`;
+  const keeps = P ? P.input : PRODUCTS[c.factories[+k.slice(4)]] && Object.keys(PRODUCTS[c.factories[+k.slice(4)]].input).map(g => GOODS[g]).join(' and ');
+  say(c.paused[k] ? `${name} paused. Your ${keeps} will stay in stock, and the workers are free for other jobs.` : `${name} running again.`);
 }
 const recipeText = prod => {
   const R = PRODUCTS[prod];
@@ -446,14 +468,17 @@ function refreshColony() {
   for (const k in PROCESSORS) {
     const n = c.proc[k], li = $('prod-' + k); li.hidden = !n; anyProc ||= !!n;
     if (!n) continue;
-    const s = st.proc[k];
+    const s = st.proc[k], what = cap1(count(n, PROCESSORS[k].label).replace('masonrys', 'masonries'));
+    if (c.paused[k]) { setText('prod-' + k, `${what}: paused, keeping your ${PROCESSORS[k].input}. Double tap to start again.`); continue; }
     const state = !s ? 'needs workers, 2 each' : c.status[k] === 'running' || !c.status[k] ? 'running' : c.status[k];
-    setText('prod-' + k, `${cap1(count(n, PROCESSORS[k].label).replace('masonrys', 'masonries'))}, ${s} staffed: ${state}`);
+    setText('prod-' + k, `${what}, ${s} staffed: ${state}. Double tap to pause.`);
   }
   $('prod-none').hidden = anyProc;
   c.factories.forEach((prod, i) => {
-    const state = st.fac[i] ? (c.status['fac:' + i] || 'running') : 'needs 3 workers';
+    const paused = c.paused['fac:' + i];
+    const state = paused ? 'paused' : st.fac[i] ? (c.status['fac:' + i] || 'running') : 'needs 3 workers';
     setText('fac-' + i, `Factory ${i + 1}: makes ${prod}, ${recipeText(prod)}. ${cap1(state)}. Double tap to switch.`);
+    setText('facpause-' + i, paused ? `Start factory ${i + 1} again` : `Pause factory ${i + 1}`);
   });
   for (const item of costs(c)) {
     const b = $('build-' + item.key.replace(':', '-'));

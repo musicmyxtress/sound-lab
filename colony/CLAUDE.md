@@ -59,6 +59,12 @@ copies the chase field code; control schemes are described in
   Shopping centers have no workers. All recipes and costs are PLACEHOLDERs.
   Goods live in colony.stock as g:*.
 - No roads: building is menu-based, not spatial.
+- Pausing (v11, from Daniel's feedback: on a stone-scarce planet the
+  masonries ate every stone, so cabins could never be built): each kind of
+  processing building is one switch in Production (double tap pauses all
+  forges, masonries or tailors); each factory gets its own Pause button.
+  Paused buildings keep their inputs in stock and send their workers home,
+  so those workers can fill other jobs. Saved as colony.paused.
 
 ## Field and sound
 

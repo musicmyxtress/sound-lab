@@ -49,3 +49,8 @@ app exists. Game lab: own nest.js, voice.js and style.css.
   end with the first 4 notes of a taught tune 25% of the time, as roughly
   as currently known. Verified with a fake-microphone Twinkle in Edge and
   synthetic hums (breathy, off-key, fast, high and low voices).
+- Version 5 (2026-11-24): random gender at birth, 50/50 girl or boy (his
+  rule), told on hatching ("It's a girl! What will you name her?") and shown
+  in the status line. All text uses {they}/{them}/{their}/{themself}/{They}
+  placeholders via fill(), or pr()/Pr() in template strings. Saves without a
+  gender become girl: the only one was Maya, whom he calls she.

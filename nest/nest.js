@@ -7,7 +7,7 @@ import { SAMPLE_RATE, TIMBRES, RHYTHMS, CONTOURS, MELODIES, PHRASINGS,
          renderCall, renderSpit, renderHuff, renderCrack } from './voice.js?v=2';
 import { listen, trackToNotes } from './hum.js?v=1';
 
-const VERSION = 4;
+const VERSION = 5;
 const KEY = 'sound-lab:nest:v1';
 
 // weight: positive grows a bigger body and lower voice (meaty, rich foods);
@@ -55,6 +55,7 @@ function newTuneling() {
   const r = Math.random();
   return {
     v: 1, stage: 'egg', name: '',
+    gender: Math.random() < 0.5 ? 'girl' : 'boy', // Blake: random at birth, told on hatching
     genes: {
       // Babies sing high: 14 to 24 semitones above 220 Hz.
       pitch: 14 + Math.random() * 10,
@@ -73,7 +74,15 @@ function newTuneling() {
 let S;
 try { S = JSON.parse(localStorage.getItem(KEY)); } catch { S = null; }
 if (!S || S.v !== 1) S = newTuneling();
+// Saves from before version 5 have no gender; the only one is Blake's Maya, a girl.
+if (!S.gender) S.gender = 'girl';
 const save = () => localStorage.setItem(KEY, JSON.stringify(S));
+const PRONOUNS = {
+  girl: { they: 'she', them: 'her', their: 'her', themself: 'herself' },
+  boy: { they: 'he', them: 'him', their: 'his', themself: 'himself' },
+};
+const pr = word => PRONOUNS[S.gender][word];
+const Pr = word => pr(word)[0].toUpperCase() + pr(word).slice(1);
 const nameOf = () => S.name || 'the baby';
 const NameOf = () => S.name || 'The baby';
 
@@ -184,7 +193,8 @@ function call(kind = S.mood || 'happy', settingsOnly = false) {
 }
 
 // ---- Words ----
-const fill = (line, food) => line.replaceAll('{N}', NameOf()).replaceAll('{n}', nameOf()).replaceAll('{F}', food ? food.name : '');
+const fill = (line, food) => line.replaceAll('{N}', NameOf()).replaceAll('{n}', nameOf()).replaceAll('{F}', food ? food.name : '')
+  .replace(/\{(they|them|their|themself)\}/g, (_, w) => pr(w)).replace(/\{They\}/g, () => Pr('they'));
 const REACTIONS = {
   love: [
     '{N} finishes the {F} and sniffs at your hand, hoping for more.',
@@ -199,7 +209,7 @@ const REACTIONS = {
   dislike: [
     '{N} eats the {F} very slowly, staring at you the whole time.',
     '{N} chews the {F} with a sour little face, but finishes it.',
-    '{N} eats the {F}, then turns round so you can only see their back.',
+    '{N} eats the {F}, then turns round so you can only see {their} back.',
   ],
   hate: [
     '{N} takes one bite of the {F} and spits it right out. Bleh!',
@@ -208,7 +218,7 @@ const REACTIONS = {
   ],
 };
 const MOOD_LINES = {
-  happy: ['{N} is happy and hums to themself.', '{N} is content, watching you with bright eyes.'],
+  happy: ['{N} is happy and hums to {themself}.', '{N} is content, watching you with bright eyes.'],
   grumpy: ['{N} is grumpy and won\'t quite look at you.'],
   sad: ['{N} is sad and sits very still.'],
   scared: ['{N} is scared and trembling.'],
@@ -227,7 +237,7 @@ const RETURNS = [
   { mood: 'excited', line: 'You come back. {N} spots you and bounces with excitement.' },
   { mood: 'loving', line: 'You come back. {N} runs over and leans against your leg.' },
   { mood: null, line: 'You come back. {N} has been napping, and wakes up happy to see you.' },
-  { mood: null, line: 'You come back. {N} was humming to themself and stops to greet you.' },
+  { mood: null, line: 'You come back. {N} was humming to {themself} and stops to greet you.' },
 ];
 
 // Judged from the tastes as they actually are, so an older save (made before
@@ -259,7 +269,7 @@ function render() {
   $('life').hidden = !hatched;
   if (hatched) {
     const kind = S.revealed ? ` ${eaterKind()[0].toUpperCase()}${eaterKind().slice(1)}.` : '';
-    $('status').textContent = `${NameOf()}: ${sizeWord()}, feeling ${MOOD_WORDS[S.mood || 'happy']}. Bond: ${bondWord()}.${kind}`;
+    $('status').textContent = `${NameOf()} (${S.gender}): ${sizeWord()}, feeling ${MOOD_WORDS[S.mood || 'happy']}. Bond: ${bondWord()}.${kind}`;
     $('listen').textContent = `How is ${nameOf()}?`;
     $('cuddle').textContent = `Cuddle ${nameOf()}`;
   }
@@ -275,7 +285,7 @@ function changes(before) {
   const out = [];
   if (sizeWord() !== before.size) {
     const smaller = S.diet < before.diet;
-    out.push(`${NameOf()} seems to be getting ${smaller ? 'smaller, and their voice a little higher' : 'bigger, and their voice a little lower'}.`);
+    out.push(`${NameOf()} seems to be getting ${smaller ? 'smaller' : 'bigger'}, and ${pr('their')} voice a little ${smaller ? 'higher' : 'lower'}.`);
   }
   if (bondWord() !== before.bond) out.push(`You and ${nameOf()} are now ${bondWord()}.`);
   return out.join(' ');
@@ -374,7 +384,7 @@ $('hatch').addEventListener('click', () => {
   $('naming').hidden = false;
   $('name').focus();
   setTimeout(render, SETTLE_MS);
-  say('The egg cracks open, and a tiny Tuneling peeps at you. What will you name them?', secs);
+  say(`The egg cracks open, and a tiny Tuneling peeps at you. It's a ${S.gender}! What will you name ${pr('them')}?`, secs);
 });
 
 $('naming').addEventListener('submit', e => {
@@ -385,7 +395,7 @@ $('naming').addEventListener('submit', e => {
   render();          // relabels the buttons with the name
   $('naming').hidden = false; // ...but keep the form until focus has moved
   $('listen').focus();
-  finish([call('happy')], `${S.name} it is. ${S.name} sings their name back to you, sort of.`, null, true);
+  finish([call('happy')], `${S.name} it is. ${S.name} sings ${pr('their')} name back to you, sort of.`, null, true);
 });
 
 $('listen').addEventListener('click', () => {
@@ -435,10 +445,6 @@ function feed(food) {
   S.bites[food.id] = (S.bites[food.id] || 0) + 1;
   let text = fill(pick(REACTIONS[taste]), food);
   if (first) text += ` ${NameOf()} ${TASTE_WORDS[taste]}.`;
-  if (!S.revealed && FOODS.every(f => S.tried[f.id])) {
-    S.revealed = true;
-    text += ` That's every food tried! ${eaterSummary()}`;
-  }
   let clips;
 
   if (taste === 'hate') {
@@ -447,14 +453,14 @@ function feed(food) {
     clips = [{ samples: renderSpit(), gap: 0.15 }, call('hate')];
     if (S.bites[food.id] >= SOFTEN_HATE) {
       S.tastes[food.id] = 'dislike'; S.bites[food.id] = 0;
-      text += ` Though, ${nameOf()} didn't spit quite as hard this time. Maybe they don't hate ${food.name} as much as they used to.`;
+      text += ` Though, ${nameOf()} didn't spit quite as hard this time. Maybe ${pr('they')} doesn't hate ${food.name} as much as ${pr('they')} used to.`;
     }
   } else {
     S.diet = Math.max(-DIET_LIMIT, Math.min(DIET_LIMIT, S.diet + food.weight * DIET_STEP));
     clips = [call(taste === 'like' ? (S.mood || 'happy') : taste)];
     if (taste === 'love') {
       S.bond += 1;
-      if (S.mood === 'sad' || S.mood === 'grumpy') { S.mood = null; S.huffed = false; text += ' That cheered them right up.'; }
+      if (S.mood === 'sad' || S.mood === 'grumpy') { S.mood = null; S.huffed = false; text += ` That cheered ${pr('them')} right up.`; }
     } else if (taste === 'like') {
       S.bond += 1;
     } else {
@@ -464,6 +470,10 @@ function feed(food) {
         text += ` Still, ${nameOf()} seems to be getting used to ${food.name}.`;
       }
     }
+  }
+  if (!S.revealed && FOODS.every(f => S.tried[f.id])) {
+    S.revealed = true;
+    text += ` That's every food tried! ${eaterSummary()}`;
   }
   if (taste === 'love' || taste === 'like') finishHappy(clips, text, before);
   else finish(clips, text, before);
@@ -577,8 +587,8 @@ function lesson(t) {
   const off = offChance(n);
   const tried = attempt(t.notes, off);
   let line;
-  if (learned(n)) line = `{N} has learned ${t.name}! They sing it all the way through, every note right. From now on it may turn up in their happy calls.`;
-  else if (off > 0.45) line = `{N} listens closely, then tries ${t.name}. Lots of wrong notes, but they're trying so hard.`;
+  if (learned(n)) line = `{N} has learned ${t.name}! {They} sings it all the way through, every note right. From now on it may turn up in {their} happy calls.`;
+  else if (off > 0.45) line = `{N} listens closely, then tries ${t.name}. Lots of wrong notes, but {they} is trying so hard.`;
   else if (off > 0.25) line = `{N} sings ${t.name} back. Getting there, with a few wrong notes.`;
   else line = `{N} sings ${t.name} back, and it's nearly right.`;
   const clips = [plainTone(t), { samples: new Float32Array(Math.floor(0.3 * SAMPLE_RATE)) }, sing(learned(n) ? t.notes : tried)];

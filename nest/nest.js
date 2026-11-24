@@ -6,7 +6,7 @@
 import { SAMPLE_RATE, TIMBRES, RHYTHMS, CONTOURS, MELODIES, PHRASINGS,
          renderCall, renderSpit, renderHuff, renderCrack } from './voice.js?v=1';
 
-const VERSION = 2;
+const VERSION = 3;
 const KEY = 'sound-lab:nest:v1';
 
 // weight: positive grows a bigger body and lower voice (meaty, rich foods);
@@ -41,10 +41,15 @@ $('title').textContent = `Tuneling Nest lab, version ${VERSION}`;
 
 // ---- State ----
 function newTuneling() {
+  // Pickiness is hidden personality (Blake's idea): 0 is an easy eater who
+  // likes nearly everything, 1 is as picky as Maya. It only shows once every
+  // food has been tried. In the real game it will be inherited.
+  const picky = Math.random();
+  const pLove = 0.25 - 0.15 * picky, pLike = 0.45 - 0.25 * picky, pHate = 0.07 + 0.15 * picky;
   const tastes = {};
   for (const f of FOODS) {
     const r = Math.random();
-    tastes[f.id] = r < 0.2 ? 'love' : r < 0.55 ? 'like' : r < 0.85 ? 'dislike' : 'hate';
+    tastes[f.id] = r < pLove ? 'love' : r < pLove + pLike ? 'like' : r < 1 - pHate ? 'dislike' : 'hate';
   }
   const r = Math.random();
   return {
@@ -60,7 +65,7 @@ function newTuneling() {
       growl: r < 0.1, purr: r >= 0.1 && r < 0.2, trill: r >= 0.2 && r < 0.3,
       seed: 1 + Math.floor(Math.random() * 100000),
     },
-    tastes, tried: {}, bites: {}, diet: 0, mood: null, huffed: false, bond: 0,
+    picky, revealed: false, tastes, tried: {}, bites: {}, diet: 0, mood: null, huffed: false, bond: 0,
   };
 }
 
@@ -222,6 +227,18 @@ const RETURNS = [
   { mood: null, line: 'You come back. {N} was humming to themself and stops to greet you.' },
 ];
 
+// Judged from the tastes as they actually are, so an older save (made before
+// pickiness existed) gets the right answer too.
+function eaterKind() {
+  const good = FOODS.filter(f => S.tastes[f.id] === 'love' || S.tastes[f.id] === 'like').length;
+  return good >= 8 ? 'an easy eater' : good <= 4 ? 'a picky eater' : 'an eater with strong opinions';
+}
+function eaterSummary() {
+  const n = {}; for (const t of TASTES) n[t] = FOODS.filter(f => S.tastes[f.id] === t).length;
+  const part = (count, one, many) => `${count === 0 ? 'no' : count} ${count === 1 ? one : many}`;
+  return `Turns out ${nameOf()} is ${eaterKind()}: ${part(n.love, 'love', 'loves')}, ${part(n.like, 'like', 'likes')}, ${part(n.dislike, 'dislike', 'dislikes')} and ${part(n.hate, 'hate', 'hates')}.`;
+}
+
 function sizeWord() {
   const d = S.diet;
   return d > 3 ? 'big and round' : d > 1.2 ? 'sturdy' : d < -3 ? 'tiny' : d < -1.2 ? 'small' : 'medium-sized';
@@ -238,7 +255,8 @@ function render() {
   $('naming').hidden = !hatched || !!S.name;
   $('life').hidden = !hatched;
   if (hatched) {
-    $('status').textContent = `${NameOf()}: ${sizeWord()}, feeling ${MOOD_WORDS[S.mood || 'happy']}. Bond: ${bondWord()}.`;
+    const kind = S.revealed ? ` ${eaterKind()[0].toUpperCase()}${eaterKind().slice(1)}.` : '';
+    $('status').textContent = `${NameOf()}: ${sizeWord()}, feeling ${MOOD_WORDS[S.mood || 'happy']}. Bond: ${bondWord()}.${kind}`;
     $('listen').textContent = `How is ${nameOf()}?`;
     $('cuddle').textContent = `Cuddle ${nameOf()}`;
   }
@@ -339,6 +357,10 @@ function feed(food) {
   S.bites[food.id] = (S.bites[food.id] || 0) + 1;
   let text = fill(pick(REACTIONS[taste]), food);
   if (first) text += ` ${NameOf()} ${TASTE_WORDS[taste]}.`;
+  if (!S.revealed && FOODS.every(f => S.tried[f.id])) {
+    S.revealed = true;
+    text += ` That's every food tried! ${eaterSummary()}`;
+  }
   let clips;
 
   if (taste === 'hate') {

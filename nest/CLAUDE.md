@@ -30,3 +30,9 @@ app exists. Game lab: own nest.js, voice.js and style.css.
   VoiceOver's cursor was hidden. Rule now: move focus to the new control
   first, hide the old one SETTLE_MS (600 ms) later. Use this for any step
   that hides the control just pressed. His first Tuneling: Maya.
+- Version 3 (2026-11-24): hidden pickiness (his idea after Maya turned out
+  picky: one love, mushrooms). `picky` 0-1 skews taste odds (love 25->10%,
+  like 45->20%, hate 7->22%). Never shown until every food is tried (his
+  rule), then announced with a count: easy eater (8+ loved/liked, ~25% of
+  eggs), strong opinions (~48%), picky (4 or fewer, ~26%). Judged from actual
+  tastes, so old saves work. Real game: inherited.

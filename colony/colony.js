@@ -16,12 +16,24 @@ const FACTORY_SECONDS = 90;        // a staffed factory makes one batch per minu
 const colonizeCost = n => n === 0 ? 0 : Math.round(100 * 2.5 ** (n - 1));
 const CAP_STEPS = [{ hours: 8, cost: 300 }, { hours: 12, cost: 800 }, { hours: 24, cost: 2000 }];
 const ABUNDANCE_WEIGHT = { plentiful: 5, common: 3, scarce: 1 };
+// Mech upgrades (v12, Blake and Daniel's idea): what the factory parts are
+// for. One mech, so levels are shared by every colony; parts come from the
+// colony you're in. Each level costs its base again: level 1 costs the base,
+// level 2 twice the base, and so on. Names and costs are PLACEHOLDERs.
+const UPGRADES = {
+  wood:  { name: "Woodsman's axe", cost: { 'g:beams': 2, 'g:servos': 1 } },
+  stone: { name: 'Stone pick',     cost: { 'g:beams': 2, 'g:servos': 1 } },
+  metal: { name: 'Ore drill',      cost: { 'g:motors': 1, 'g:wires': 2 } },
+  fiber: { name: 'Fiber shears',   cost: { 'g:servos': 1, 'g:wires': 2 } },
+  reach: { name: 'Reach arm',      cost: { 'g:motors': 1, 'g:servos': 2, 'g:wires': 4 } },
+};
 
 // ---------- save ----------
 const SAVE_KEY = 'colony:save:v3'; // v3: four types, one workplace each
 const fresh = () => ({ money: 0, cap: 4, capLevel: 0, colonies: [], current: -1, founded: 0, last: Date.now() });
 let G;
 try { G = JSON.parse(localStorage.getItem(SAVE_KEY)) || fresh(); } catch { G = fresh(); }
+G.upgrades ??= {}; // v12: upgrade key -> level
 const save = () => { try { localStorage.setItem(SAVE_KEY, JSON.stringify(G)); } catch {} };
 window.__colony = () => G; // for automated checks
 const cur = () => G.colonies[G.current];
@@ -389,6 +401,12 @@ const RENDER = {
       pr.append(b);
     }
     renderFactories(c);
+    const up = $('upgrades'); up.replaceChildren();
+    for (const k in UPGRADES) {
+      const b = el('button', { id: 'upg-' + k });
+      b.addEventListener('click', () => buyUpgrade(c, k));
+      up.append(b);
+    }
     const bd = $('build'); bd.replaceChildren();
     let group = '';
     for (const item of costs(c)) {
@@ -480,6 +498,14 @@ function refreshColony() {
     setText('fac-' + i, `Factory ${i + 1}: makes ${prod}, ${recipeText(prod)}. ${cap1(state)}. Double tap to switch.`);
     setText('facpause-' + i, paused ? `Start factory ${i + 1} again` : `Pause factory ${i + 1}`);
   });
+  for (const k in UPGRADES) {
+    const lv = G.upgrades[k] || 0, cost = upgradeCost(k);
+    const does = k === 'reach'
+      ? (lv ? `picks things up from ${count(lv, 'footstep')} away` : 'you pick things up only when you reach them')
+      : `each ${k} you find gives ${1 + lv}`;
+    setText('upg-' + k, `${UPGRADES[k].name}, level ${lv}: ${does}. Next level: ${costText(c, cost)}`);
+    $('upg-' + k).setAttribute('aria-disabled', !affordable(c, cost));
+  }
   for (const item of costs(c)) {
     const b = $('build-' + item.key.replace(':', '-'));
     setText(b.id, `Build ${item.label}: ${costText(c, item.cost)}`);
@@ -516,6 +542,27 @@ function build(c, item) {
   // waits until the work sound ends.
   const clanks = Math.min(6, 2 + Math.floor(Object.values(item.cost).reduce((a, b) => a + b, 0) / 6));
   ensureAudio().then(() => setTimeout(() => say(msg), Math.max(0, mechBuild(clanks) * 1000 - 700)), () => say(msg));
+}
+
+const upgradeCost = k => {
+  const lv = G.upgrades[k] || 0, out = {};
+  for (const [g, n] of Object.entries(UPGRADES[k].cost)) out[g] = n * (lv + 1);
+  return out;
+};
+function buyUpgrade(c, k) {
+  const cost = upgradeCost(k);
+  if (!affordable(c, cost)) {
+    const short = Object.entries(cost).filter(([id, n]) => c.stock[id] < n)
+      .map(([id, n]) => `${n - c.stock[id]} more ${nameOf(c, id, n - c.stock[id])}`).join(', ');
+    return say(`Need ${short}.`);
+  }
+  for (const [g, n] of Object.entries(cost)) c.stock[g] -= n;
+  const lv = G.upgrades[k] = (G.upgrades[k] || 0) + 1;
+  save(); refreshColony();
+  const msg = `${UPGRADES[k].name} upgraded to level ${lv}. ` + (k === 'reach'
+    ? `You now pick things up from ${count(lv, 'footstep')} away.`
+    : `Each ${k} you find now gives ${1 + lv}.`);
+  ensureAudio().then(() => setTimeout(() => say(msg), Math.max(0, mechBuild(3) * 1000 - 700)), () => say(msg));
 }
 
 // ---------- menu actions ----------
@@ -697,7 +744,7 @@ function updateTargets() {
   const h = S.h * Math.PI / 180, now = ctx.currentTime;
   for (const A of [...active.values()]) {
     const T = A.it, rx = T.x - S.x, ry = T.y - S.y, dist = Math.hypot(rx, ry);
-    if (dist < REACH) { collect(A); continue; }
+    if (dist < REACH + (G.upgrades.reach || 0) * STRIDE) { collect(A); continue; } // each Reach arm level adds one footstep
     const fwd = rx * Math.sin(h) + ry * Math.cos(h), right = rx * Math.cos(h) - ry * Math.sin(h);
     A.panner.positionX.setTargetAtTime(right, now, 0.03);
     A.panner.positionY.setTargetAtTime(0, now, 0.03);
@@ -715,10 +762,11 @@ function collect(A) {
   const T = A.it, c = cur();
   A.out.disconnect(); active.delete(T.key);
   (c.field.collected[T.chunk] ??= []).push(T.i);
-  c.stock[T.mat.id]++; save();
+  const n = 1 + (G.upgrades[T.mat.type] || 0); // tool upgrades: more per find
+  c.stock[T.mat.id] += n; save();
   const t = ctx.currentTime;
   [1, 1.25, 1.5].forEach((m, i) => playMat(T.mat.sound, master, t + i * 0.15, m));
-  say(`${T.mat.name}: ${c.stock[T.mat.id]} found. Type: ${T.mat.type}.`);
+  say(`${T.mat.name}: ${n > 1 ? `${n} at once, ` : ''}${c.stock[T.mat.id]} found. Type: ${T.mat.type}.`);
 }
 
 function turnBy(deg) {

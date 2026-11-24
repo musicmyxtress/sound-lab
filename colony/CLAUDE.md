@@ -7,7 +7,8 @@ copies the chase field code; control schemes are described in
 
 ## Premise and tone
 
-- Keep a giant mech (Daniel loves it), but no suit upgrades. Endless,
+- Keep a giant mech (Daniel loves it). Mech upgrades came in v12 (see
+  below); an earlier note said no suit upgrades, and Blake changed that. Endless,
   procedurally generated field and sounds that never run out. Building
   happens in a separate workshop (built things would mask the field),
   reached by a "go home" command.
@@ -52,7 +53,7 @@ copies the chase field code; control schemes are described in
 - Processing (2 workers, 2 raw -> 1 per minute): forge (ore -> bars),
   masonry (stone -> bricks), tailor (fiber -> cloth/rope).
 - Factories (3 workers) make one chosen product each, double tap to switch:
-  wires, beams, servos, motors. Servos and motors have no use yet.
+  wires, beams, servos, motors. Their use is mech upgrades (v12).
 - Workers fill jobs in chain order (gatherers, processing, factories).
   Buildings stop and say what they are waiting for.
 - Houses and shopping centers cost bricks; factories cost bricks and bars.
@@ -92,3 +93,17 @@ copies the chase field code; control schemes are described in
   or drags turn slowly; a soft two-note chime plays when a sound comes
   within 5 degrees of straight ahead. Fixes swinging past sounds like a
   pendulum.
+
+## Mech upgrades (v12)
+
+- Blake and Daniel's idea: factory parts are for upgrading the mech. Bought
+  in the colony's Mech upgrades section with the current colony's parts.
+  Levels belong to the mech (G.upgrades), so they count on every colony.
+- One tool per material type: Woodsman's axe (wood), Stone pick, Ore drill
+  (metal), Fiber shears. Each level gives one more of that type per find
+  (level 1 axe = 2 wood). Pickup speech adds "2 at once".
+- Reach arm: each level picks things up from one more mech footstep away
+  (2.4 m, STRIDE) on top of the base 2.5 m. Blake said "1 square away"; the
+  field has no grid, so a footstep stands in for a square.
+- Cost per level = base cost x the level you're buying. Names and costs are
+  PLACEHOLDERs (UPGRADES in colony.js).

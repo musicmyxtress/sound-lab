@@ -25,3 +25,8 @@ app exists. Game lab: own nest.js, voice.js and style.css.
 - Sound plays first, then the text line (say() waits for the sound).
 - Not in the sketch yet: pictures, stages, humming, activities, walks.
 - Saved in localStorage `sound-lab:nest:v1`.
+- Version 2 (2026-11-24): focus jumped on his iPhone after hatching and
+  naming (once it landed him on Feed carrot). Cause: the control under
+  VoiceOver's cursor was hidden. Rule now: move focus to the new control
+  first, hide the old one SETTLE_MS (600 ms) later. Use this for any step
+  that hides the control just pressed. His first Tuneling: Maya.

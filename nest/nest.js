@@ -6,7 +6,7 @@
 import { SAMPLE_RATE, TIMBRES, RHYTHMS, CONTOURS, MELODIES, PHRASINGS,
          renderCall, renderSpit, renderHuff, renderCrack } from './voice.js?v=1';
 
-const VERSION = 1;
+const VERSION = 2;
 const KEY = 'sound-lab:nest:v1';
 
 // weight: positive grows a bigger body and lower voice (meaty, rich foods);
@@ -259,19 +259,26 @@ function changes(before) {
   return out.join(' ');
 }
 const snapshot = () => ({ size: sizeWord(), bond: bondWord(), diet: S.diet });
-function finish(clips, text, before) {
+// VoiceOver jumps somewhere unpredictable when the control under its cursor
+// disappears. So when a step hides that control, focus moves to its new home
+// first and the page only hides the old one a moment later.
+const SETTLE_MS = 600;
+function finish(clips, text, before, settle = false) {
   const secs = playSequence(clips);
   const extra = before ? changes(before) : '';
-  save(); render();
+  save();
+  if (settle) setTimeout(render, SETTLE_MS); else render();
   say(extra ? `${text} ${extra}` : text, secs);
 }
 
 $('hatch').addEventListener('click', () => {
   S.stage = 'baby';
   const secs = playSequence([{ samples: renderCrack(), gap: 0.3 }, call('happy')]);
-  save(); render();
-  // The hatch button is now hidden, so focus goes straight to the name box.
+  save();
+  // Show the name box and move focus there BEFORE the hatch button hides.
+  $('naming').hidden = false;
   $('name').focus();
+  setTimeout(render, SETTLE_MS);
   say('The egg cracks open, and a tiny Tuneling peeps at you. What will you name them?', secs);
 });
 
@@ -280,8 +287,10 @@ $('naming').addEventListener('submit', e => {
   const name = $('name').value.trim().slice(0, 20);
   if (!name) { say('Type a name first.'); return; }
   S.name = name[0].toUpperCase() + name.slice(1);
-  finish([call('happy')], `${S.name} it is. ${S.name} sings their name back to you, sort of.`);
-  setTimeout(() => $('listen').focus(), 100);
+  render();          // relabels the buttons with the name
+  $('naming').hidden = false; // ...but keep the form until focus has moved
+  $('listen').focus();
+  finish([call('happy')], `${S.name} it is. ${S.name} sings their name back to you, sort of.`, null, true);
 });
 
 $('listen').addEventListener('click', () => {

@@ -119,3 +119,13 @@ copies the chase field code; control schemes are described in
   every side. Don't add direction rules.
 - Simulated steps-mode player (30 degree turns, 2 m steps): 197 of 200
   items reached without an arm, 200 of 200 with one.
+
+## Straightening out (v15)
+
+- Blake kept turning in circles trying to go straight again in hold and
+  tilt; the go-straight zones were too narrow (hold 15 px either side of
+  where the finger landed, tilt 6 degrees). Now hold 40 px (full turn at
+  150 px) and tilt 15 degrees (full at 38). HOLD_STRAIGHT / TILT_STRAIGHT
+  in colony.js, PLACEHOLDERs.
+- A soft low tock (520 Hz) plays when turning stops because you came back
+  into the straight zone. Not on release (the stop cue covers that).

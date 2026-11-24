@@ -190,6 +190,8 @@ function footstep(back) {
   noiseSrc(ti, 0.12, filt('lowpass', 500, 0.7, env(ti, 0.002, 0.1, 0.6, pan)));
 }
 const turnTick = () => { const t = ctx.currentTime; osc('sine', 1400, t, 0.04, env(t, 0.001, 0.02, 0.05, master)); };
+// Soft low tock when your finger or tilt lands in the go-straight zone (v15).
+const straightCue = () => { const t = ctx.currentTime; osc('sine', 520, t, 0.07, env(t, 0.002, 0.06, 0.09, master)); };
 // Soft chime when a sound comes dead centre: stop turning here.
 let lastAheadCue = 0;
 function aheadCue() {
@@ -805,6 +807,11 @@ function recenter() {
   neutral.beta = orient.beta; neutral.gamma = orient.gamma; neutral.compass = (orient.compass ?? 0) - S.h;
 }
 $('recenter').addEventListener('click', () => { recenter(); say('Recentered.'); });
+// Go-straight zones (v15, Blake kept circling while trying to straighten
+// out): hold pad 40 px either side of where the finger landed (was 15),
+// tilt 15 degrees either side of level (was 6). PLACEHOLDER.
+const HOLD_STRAIGHT = 40, HOLD_FULL = 150, TILT_STRAIGHT = 15, TILT_FULL = 38;
+let wasTurning = false;
 const curve = (v, dz, full) => { const a = Math.abs(v); return a < dz ? 0 : Math.sign(v) * Math.min(1, (a - dz) / (full - dz)); };
 
 // Hold pad: press walks forward; drag sideways turns (further = sharper);
@@ -851,13 +858,17 @@ function frame(now) {
   const dt = Math.min(0.1, (now - last) / 1000); last = now;
   let turn = 0, speed = 0;
   if (S.mode === 'tilt') {
-    turn = ease(curve(orient.gamma - neutral.gamma, 6, 30)) * MAX_TURN;
+    turn = ease(curve(orient.gamma - neutral.gamma, TILT_STRAIGHT, TILT_FULL)) * MAX_TURN;
     const fb = curve(neutral.beta - orient.beta, 6, 25);
     speed = fb > 0 ? fb * WALK : fb * BACK;
   } else if (hold && (S.mode === 'hold' || S.mode === 'compass')) {
     speed = hold.dir > 0 ? WALK : -BACK;
-    if (S.mode === 'hold') turn = ease(curve(hold.dx, 15, 120)) * MAX_TURN;
+    if (S.mode === 'hold') turn = ease(curve(hold.dx, HOLD_STRAIGHT, HOLD_FULL)) * MAX_TURN;
   }
+  // Tock when turning stops because you came back to straight (not on release).
+  const steering = S.mode === 'tilt' || (S.mode === 'hold' && hold);
+  if (steering && wasTurning && !turn) straightCue();
+  wasTurning = steering && !!turn;
   if (S.mode === 'compass' && orient.compass != null) {
     const diff = ((orient.compass - neutral.compass - S.h) % 360 + 540) % 360 - 180;
     turnBy(diff * Math.min(1, dt * 8));

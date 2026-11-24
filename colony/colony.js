@@ -637,7 +637,12 @@ for (const r of document.querySelectorAll('input[name=mode]')) r.addEventListene
 // the world is fixed and endless. Only materials within hearing range make
 // sound; they fade to silence at the edge. Collected ones stay collected, so
 // you can clear one area, then move on and find more.
-const WALK = 3, BACK = 2, MAX_TURN = 70, STEP = 2, STEP_TURN = 30, REACH = 2.5;
+const WALK = 3, BACK = 2, MAX_TURN = 70, STEP = 2, STEP_TURN = 30;
+// Picking up (v13, Blake: metal "clearly to my left" got grabbed while he was
+// turning toward it). The mech grabs only what's in front: within REACH and
+// GRAB_CONE degrees of straight ahead. Each Reach arm level adds a footstep
+// of reach. Walking right onto something (TOUCH) picks it up from any side.
+const REACH = 1.5, TOUCH = 1, GRAB_CONE = 30; // PLACEHOLDER
 // Turning eases in: a small tilt or drag turns very slowly, so you can stop
 // on a sound instead of swinging past it (v10, Blake's pendulum problem).
 const ease = v => Math.sign(v) * Math.abs(v) ** 1.5;
@@ -744,13 +749,14 @@ function updateTargets() {
   const h = S.h * Math.PI / 180, now = ctx.currentTime;
   for (const A of [...active.values()]) {
     const T = A.it, rx = T.x - S.x, ry = T.y - S.y, dist = Math.hypot(rx, ry);
-    if (dist < REACH + (G.upgrades.reach || 0) * STRIDE) { collect(A); continue; } // each Reach arm level adds one footstep
     const fwd = rx * Math.sin(h) + ry * Math.cos(h), right = rx * Math.cos(h) - ry * Math.sin(h);
+    const offAhead = Math.abs(Math.atan2(right, fwd)) * 180 / Math.PI;
+    if (dist < TOUCH || (dist < REACH + (G.upgrades.reach || 0) * STRIDE && offAhead < GRAB_CONE)) { collect(A); continue; }
     A.panner.positionX.setTargetAtTime(right, now, 0.03);
     A.panner.positionY.setTargetAtTime(0, now, 0.03);
     A.panner.positionZ.setTargetAtTime(-fwd, now, 0.03);
     A.lp.frequency.setTargetAtTime(700 * 28 ** ((fwd / dist + 1) / 2), now, 0.05); // behind = muffled
-    const ahead = fwd > 0 && Math.abs(Math.atan2(right, fwd)) * 180 / Math.PI < AHEAD;
+    const ahead = fwd > 0 && offAhead < AHEAD;
     if (ahead && !A.ahead) aheadCue();
     A.ahead = ahead;
     A.out.gain.setTargetAtTime(Math.max(0, 1 - dist / HEAR), now, 0.1);     // fades to silence at the edge

@@ -103,18 +103,19 @@ copies the chase field code; control schemes are described in
   (metal), Fiber shears. Each level gives one more of that type per find
   (level 1 axe = 2 wood). Pickup speech adds "2 at once".
 - Reach arm: each level picks things up from one more mech footstep away
-  (2.4 m, STRIDE) on top of the base reach. Blake said "1 square away"; the
+  (2.4 m, STRIDE) (on any side; without an arm only walking onto it counts). Blake said "1 square away"; the
   field has no grid, so a footstep stands in for a square.
 - Cost per level = base cost x the level you're buying. Names and costs are
   PLACEHOLDERs (UPGRADES in colony.js).
 
-## Picking up (v13)
+## Picking up (v14, Blake's rule)
 
-- Blake picked up metal "clearly to my left" while turning toward it: the
-  old rule grabbed anything within 2.5 m in any direction (4.9 m with a
-  Reach arm). Now the mech grabs only what's in front: within 1.5 m and 30
-  degrees of straight ahead, plus one footstep per Reach arm level (level 1
-  = 3.9 m). Walking onto an item (under 1 m) picks it up from any side.
-- Tested by simulation: walking past an item 1 m or more to the side no
-  longer grabs it without the arm. A steps-mode player (30 degree turns,
-  2 m steps) still reached 200 of 200 items.
+- Without a Reach arm you pick up only what you walk onto (within 1 m,
+  TOUCH). With one, anything within one footstep (2.4 m) per level, on ANY
+  side: level 1 = 2.4 m, level 2 = 4.8 m.
+- Why: v12 grabbed anything within 2.5 m even without an arm, so Blake
+  picked up metal "clearly to my left" while turning to it. v13 tried
+  front-only grabbing; Blake rejected that. The reach arm must work on
+  every side. Don't add direction rules.
+- Simulated steps-mode player (30 degree turns, 2 m steps): 197 of 200
+  items reached without an arm, 200 of 200 with one.

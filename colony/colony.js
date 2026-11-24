@@ -501,7 +501,7 @@ function refreshColony() {
   for (const k in UPGRADES) {
     const lv = G.upgrades[k] || 0, cost = upgradeCost(k);
     const does = k === 'reach'
-      ? (lv ? `picks things up from ${count(lv, 'footstep')} away` : 'you pick things up only when you reach them')
+      ? (lv ? `picks things up from ${count(lv, 'footstep')} away` : 'you pick up only what you walk onto')
       : `each ${k} you find gives ${1 + lv}`;
     setText('upg-' + k, `${UPGRADES[k].name}, level ${lv}: ${does}. Next level: ${costText(c, cost)}`);
     $('upg-' + k).setAttribute('aria-disabled', !affordable(c, cost));
@@ -638,11 +638,11 @@ for (const r of document.querySelectorAll('input[name=mode]')) r.addEventListene
 // sound; they fade to silence at the edge. Collected ones stay collected, so
 // you can clear one area, then move on and find more.
 const WALK = 3, BACK = 2, MAX_TURN = 70, STEP = 2, STEP_TURN = 30;
-// Picking up (v13, Blake: metal "clearly to my left" got grabbed while he was
-// turning toward it). The mech grabs only what's in front: within REACH and
-// GRAB_CONE degrees of straight ahead. Each Reach arm level adds a footstep
-// of reach. Walking right onto something (TOUCH) picks it up from any side.
-const REACH = 1.5, TOUCH = 1, GRAB_CONE = 30; // PLACEHOLDER
+// Picking up (v14, Blake's rule): without a Reach arm you pick up only what
+// you walk onto (TOUCH). With one, anything within one footstep per level,
+// on any side. (v13 grabbed only in front; Blake said no.)
+const TOUCH = 1; // metres: standing on it (PLACEHOLDER)
+const reachNow = () => Math.max(TOUCH, (G.upgrades.reach || 0) * STRIDE);
 // Turning eases in: a small tilt or drag turns very slowly, so you can stop
 // on a sound instead of swinging past it (v10, Blake's pendulum problem).
 const ease = v => Math.sign(v) * Math.abs(v) ** 1.5;
@@ -751,7 +751,7 @@ function updateTargets() {
     const T = A.it, rx = T.x - S.x, ry = T.y - S.y, dist = Math.hypot(rx, ry);
     const fwd = rx * Math.sin(h) + ry * Math.cos(h), right = rx * Math.cos(h) - ry * Math.sin(h);
     const offAhead = Math.abs(Math.atan2(right, fwd)) * 180 / Math.PI;
-    if (dist < TOUCH || (dist < REACH + (G.upgrades.reach || 0) * STRIDE && offAhead < GRAB_CONE)) { collect(A); continue; }
+    if (dist < reachNow()) { collect(A); continue; }
     A.panner.positionX.setTargetAtTime(right, now, 0.03);
     A.panner.positionY.setTargetAtTime(0, now, 0.03);
     A.panner.positionZ.setTargetAtTime(-fwd, now, 0.03);

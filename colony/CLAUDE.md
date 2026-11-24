@@ -127,5 +127,20 @@ copies the chase field code; control schemes are described in
   where the finger landed, tilt 6 degrees). Now hold 40 px (full turn at
   150 px) and tilt 15 degrees (full at 38). HOLD_STRAIGHT / TILT_STRAIGHT
   in colony.js, PLACEHOLDERs.
-- A soft low tock (520 Hz) plays when turning stops because you came back
+- A tock (520 Hz triangle; louder in v16 for busy fields) plays when turning stops because you came back
   into the straight zone. Not on release (the stop cue covers that).
+
+## Playthrough log (v16)
+
+- Blake can't show his screen, so the field logs what he hears: every half
+  second (unchanged lines skipped) position, facing, turning speed, walking,
+  and the 8 nearest sounds with item key, distance and degrees left/right
+  of ahead (or of behind). Also ENTER/LEAVE FIELD, PICKED UP, STEP TURN.
+- "Mark this moment for the log" in the field writes MARK n. Settings has
+  Share playthrough log (iOS share sheet, a colony-log.txt file; falls back
+  to the clipboard) and Clear. Last 2000 lines, localStorage colony:log.
+- First use: Blake's stone that "won't budge" when he turns while nearby
+  fiber and metal move. Measured: stone has no worse left/right ear
+  difference than other materials (all low sounds only 2-6 dB at full
+  side). Suspect two same-material items blurring into one sound; the log
+  will show it.

@@ -191,7 +191,7 @@ function footstep(back) {
 }
 const turnTick = () => { const t = ctx.currentTime; osc('sine', 1400, t, 0.04, env(t, 0.001, 0.02, 0.05, master)); };
 // Soft low tock when your finger or tilt lands in the go-straight zone (v15).
-const straightCue = () => { const t = ctx.currentTime; osc('sine', 520, t, 0.07, env(t, 0.002, 0.06, 0.09, master)); };
+const straightCue = () => { const t = ctx.currentTime; osc('triangle', 520, t, 0.08, env(t, 0.002, 0.07, 0.35, master)); }; // v16: louder, cuts through busy fields
 // Soft chime when a sound comes dead centre: stop turning here.
 let lastAheadCue = 0;
 function aheadCue() {
@@ -633,6 +633,57 @@ $('fieldMode').addEventListener('click', async () => {
 });
 for (const r of document.querySelectorAll('input[name=mode]')) r.addEventListener('change', modeLabel);
 
+// ---------- playthrough log (v16) ----------
+// Blake can't show a screen, so the field writes what he hears: twice a
+// second, position, facing, turning and every sound in range with its
+// distance and direction. "Mark this moment" flags a spot; Settings shares
+// the log as a text file. Kept to the last 2000 lines, saved locally.
+const LOG_KEY = 'colony:log';
+let LOG = [];
+try { LOG = JSON.parse(localStorage.getItem(LOG_KEY)) || []; } catch {}
+let logDirty = 0;
+function logLine(text) {
+  const d = new Date();
+  LOG.push(`${d.toTimeString().slice(0, 8)}.${String(d.getMilliseconds()).padStart(3, '0').slice(0, 1)} ${text}`);
+  if (LOG.length > 2000) LOG.splice(0, LOG.length - 2000);
+  if (++logDirty >= 10 || /^(MARK|PICKED|ENTER|LEAVE)/.test(text)) { logDirty = 0; try { localStorage.setItem(LOG_KEY, JSON.stringify(LOG)); } catch {} }
+}
+window.__log = () => LOG; // for automated checks
+function logSnapshot(turn, speed) {
+  const h = S.h * Math.PI / 180;
+  const heard = [...active.values()].map(A => {
+    const rx = A.it.x - S.x, ry = A.it.y - S.y, dist = Math.hypot(rx, ry);
+    const fwd = rx * Math.sin(h) + ry * Math.cos(h), right = rx * Math.cos(h) - ry * Math.sin(h);
+    const ang = Math.round(Math.atan2(right, fwd) * 180 / Math.PI);
+    const dir = ang === 0 ? 'ahead' : Math.abs(ang) > 90 ? `${180 - Math.abs(ang)} ${ang < 0 ? 'left' : 'right'} of behind` : `${Math.abs(ang)} ${ang < 0 ? 'left' : 'right'}`;
+    return { dist, text: `${A.it.mat.name} (${A.it.mat.type}, item ${A.it.key}) ${dist.toFixed(1)} m, ${dir}` };
+  }).sort((a, b) => a.dist - b.dist).slice(0, 8).map(x => x.text);
+  const t = Math.round(turn);
+  const line = `at ${S.x.toFixed(1)},${S.y.toFixed(1)} facing ${Math.round(S.h)}, ${t ? `turning ${t < 0 ? 'left' : 'right'} ${Math.abs(t)} deg/s` : 'straight'}, ${speed > 0 ? 'walking' : speed < 0 ? 'backing' : 'standing'} | ${heard.join('; ') || 'nothing in range'}`;
+  if (line !== lastSnap) logLine(line); // standing still doesn't fill the log
+  lastSnap = line;
+}
+let lastSnap = '';
+async function shareLog() {
+  const head = `Colony lab log, version ${document.querySelector('#menu h1').textContent.replace(/\D+/, '')}, ${new Date().toString()}\nControls: ${S.mode}. Reach arm level ${G.upgrades.reach || 0}. Richness ${richLevel}.\nDirections: degrees left or right of straight ahead.\n\n`;
+  const text = head + LOG.join('\n');
+  const file = new File([text], 'colony-log.txt', { type: 'text/plain' });
+  try {
+    if (navigator.canShare?.({ files: [file] })) await navigator.share({ files: [file], title: 'Colony lab log' });
+    else if (navigator.share) await navigator.share({ text, title: 'Colony lab log' });
+    else { await navigator.clipboard.writeText(text); say('Log copied to the clipboard.'); }
+  } catch (e) {
+    if (e.name === 'AbortError') return;
+    try { await navigator.clipboard.writeText(text); say('Sharing failed, so the log was copied to the clipboard.'); }
+    catch { say('Could not share or copy the log.'); }
+  }
+}
+$('shareLog').addEventListener('click', shareLog);
+$('clearLog').addEventListener('click', () => { LOG = []; try { localStorage.removeItem(LOG_KEY); } catch {} say('Log cleared.'); });
+let markCount = 0;
+$('markLog').addEventListener('click', () => { markCount++; logLine(`MARK ${markCount}`); say(`Marked, number ${markCount}.`); });
+let logAcc = 0;
+
 // ---------- the field: an endless world in chunks ----------
 // Like E.X.O.: the planet's surface is cut into squares (chunks). Each
 // chunk's materials come from the planet seed plus the chunk's position, so
@@ -707,6 +758,7 @@ async function enterField() {
   show('field');
   $('fieldTitle').textContent = `${c.planet.name} surface`;
   S.x = c.field.x; S.y = c.field.y; S.h = c.field.h; S.running = true;
+  logLine(`ENTER FIELD on ${c.planet.name}, controls ${S.mode}, reach arm ${G.upgrades.reach || 0}, richness ${richLevel}`);
   chunkCache.clear();
   recenter();
   stream();
@@ -716,6 +768,7 @@ async function enterField() {
   requestAnimationFrame(frame);
 }
 function stopField() {
+  if (S.running) logLine('LEAVE FIELD');
   S.running = false; hold = null;
   const c = cur();
   if (c?.field) { c.field.x = S.x; c.field.y = S.y; c.field.h = S.h; save(); } // come back where you left
@@ -770,6 +823,7 @@ function collect(A) {
   const T = A.it, c = cur();
   A.out.disconnect(); active.delete(T.key);
   (c.field.collected[T.chunk] ??= []).push(T.i);
+  logLine(`PICKED UP ${T.mat.name} (${T.mat.type}, item ${T.key}) at ${Math.hypot(T.x - S.x, T.y - S.y).toFixed(1)} m`);
   const n = 1 + (G.upgrades[T.mat.type] || 0); // tool upgrades: more per find
   c.stock[T.mat.id] += n; save();
   const t = ctx.currentTime;
@@ -845,7 +899,7 @@ function stepper(sl, act) {
   });
 }
 const doStep = d => { stepAcc = STRIDE; moveBy(d * STEP); updateTargets(); return d > 0 ? 'Forward' : 'Back'; };
-const doTurn = d => { turnBy(d * STEP_TURN); updateTargets(); return d > 0 ? 'Right' : 'Left'; };
+const doTurn = d => { turnBy(d * STEP_TURN); updateTargets(); logLine(`STEP TURN ${d > 0 ? 'right' : 'left'} 30`); return d > 0 ? 'Right' : 'Left'; };
 stepper($('walkSlider'), doStep);
 stepper($('turnSlider'), doTurn);
 $('stepFwd').addEventListener('click', () => S.running && doStep(1));
@@ -875,6 +929,7 @@ function frame(now) {
   } else if (turn) turnBy(turn * dt);
   if (speed) moveBy(speed * dt);
   updateTargets();
+  logAcc += dt; if (logAcc >= 0.5) { logAcc = 0; logSnapshot(S.mode === 'compass' ? 0 : turn, speed); }
   requestAnimationFrame(frame);
 }
 

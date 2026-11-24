@@ -54,3 +54,8 @@ app exists. Game lab: own nest.js, voice.js and style.css.
   in the status line. All text uses {they}/{them}/{their}/{themself}/{They}
   placeholders via fill(), or pr()/Pr() in template strings. Saves without a
   gender become girl: the only one was Maya, whom he calls she.
+- Version 6 (2026-11-24): the 12 food buttons buried Songs, so he couldn't
+  find humming. Foods now fold behind "Feed <name>: show foods" (opens with
+  focus on the first food; choosing one sends focus back to Feed, then
+  folds). Tastes fold behind "Show tastes found so far". Songs now sit right
+  under the main buttons. Keep the main screen short.

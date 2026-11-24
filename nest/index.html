@@ -26,11 +26,10 @@
 <p id="status"></p>
 <button id="listen" class="big">How is your Tuneling?</button>
 <button id="cuddle">Cuddle</button>
+<button id="feed" aria-expanded="false" aria-controls="foods">Feed</button>
+<div id="foods" hidden></div>
 <button id="away">Leave and come back later</button>
 <p class="small">Last thing that happened: <span id="last">nothing yet</span></p>
-
-<h2>Food</h2>
-<div id="foods"></div>
 
 <h2>Songs</h2>
 <button id="hum">Hum a tune: starts after the beep, listens for 7 seconds</button>
@@ -45,8 +44,9 @@
 <div id="tunebook"></div>
 </section>
 
-<h2>Tastes found so far</h2>
-<ul id="tastes"></ul>
+<h2>Tastes</h2>
+<button id="showtastes" aria-expanded="false" aria-controls="tastes">Show tastes found so far</button>
+<ul id="tastes" hidden></ul>
 
 <h2>About this lab</h2>
 <p class="small">A first taste of Tuneling Nest. Hatch an egg, name your Tuneling,
@@ -63,6 +63,6 @@ at the end of happy calls.</p>
 <button id="reset">Start over with a new egg</button>
 </main>
 <div id="say" class="sr-only" aria-live="polite"></div>
-<script type="module" src="nest.js?v=5"></script>
+<script type="module" src="nest.js?v=6"></script>
 </body>
 </html>

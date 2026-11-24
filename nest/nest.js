@@ -7,7 +7,7 @@ import { SAMPLE_RATE, TIMBRES, RHYTHMS, CONTOURS, MELODIES, PHRASINGS,
          renderCall, renderSpit, renderHuff, renderCrack } from './voice.js?v=2';
 import { listen, trackToNotes } from './hum.js?v=1';
 
-const VERSION = 5;
+const VERSION = 6;
 const KEY = 'sound-lab:nest:v1';
 
 // weight: positive grows a bigger body and lower voice (meaty, rich foods);
@@ -272,6 +272,7 @@ function render() {
     $('status').textContent = `${NameOf()} (${S.gender}): ${sizeWord()}, feeling ${MOOD_WORDS[S.mood || 'happy']}. Bond: ${bondWord()}.${kind}`;
     $('listen').textContent = `How is ${nameOf()}?`;
     $('cuddle').textContent = `Cuddle ${nameOf()}`;
+    $('feed').textContent = $('foods').hidden ? `Feed ${nameOf()}: show foods` : 'Hide foods';
   }
   refreshTunes();
   for (const f of FOODS) {
@@ -437,7 +438,29 @@ $('away').addEventListener('click', () => {
   finish([call(r.mood || 'happy')], fill(r.line));
 });
 
+// The food list stays folded away behind one button (Blake: twelve buttons
+// buried everything below them). Opening it puts focus on the first food;
+// choosing a food sends focus back to the Feed button, then folds the list.
+function setFoodsOpen(open) {
+  $('foods').hidden = !open;
+  $('feed').setAttribute('aria-expanded', String(open));
+  $('feed').textContent = open ? 'Hide foods' : `Feed ${nameOf()}: show foods`;
+}
+$('feed').addEventListener('click', () => {
+  const open = $('foods').hidden;
+  if (open) { setFoodsOpen(true); $('foods').querySelector('button').focus(); }
+  else setFoodsOpen(false);
+});
+$('showtastes').addEventListener('click', () => {
+  const open = $('tastes').hidden;
+  $('tastes').hidden = !open;
+  $('showtastes').setAttribute('aria-expanded', String(open));
+  $('showtastes').textContent = open ? 'Hide tastes' : 'Show tastes found so far';
+});
+
 function feed(food) {
+  $('feed').focus();
+  setTimeout(() => setFoodsOpen(false), SETTLE_MS);
   const before = snapshot();
   const taste = S.tastes[food.id];
   const first = !S.tried[food.id];

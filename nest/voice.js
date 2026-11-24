@@ -126,10 +126,17 @@ function envelope(timbre, attack, sinceStart, untilEnd, noteLength) {
   return start * release * bellDecay * pluckDecay;
 }
 
+// A tune to sing instead of the creature's own call: p.notes is a list of
+// { semis (from base), length (seconds) }, each followed by a short gap.
+function tuneLayout(list) {
+  let at = 0;
+  return list.map(nt => { const o = { start: at, length: nt.length }; at += nt.length + 0.05; return o; });
+}
+
 // p: { base (Hz), speed 0-1, rhythm, timbre, contour, melody, phrasing,
 //      brightness 0-1, sweep, attack, harmony, growl, purr, trill, seed }
 export function renderCall(p) {
-  const ns = notes(p);
+  const ns = p.notes ? tuneLayout(p.notes) : notes(p);
   const last = ns[ns.length - 1];
   const total = last.start + last.length + 0.05;
   const out = new Float32Array(Math.ceil(total * SAMPLE_RATE));
@@ -155,7 +162,7 @@ export function renderCall(p) {
   ns.forEach((note, index) => {
     const first = Math.floor(note.start * SAMPLE_RATE);
     const count = Math.floor(note.length * SAMPLE_RATE);
-    const step = tune[index % tune.length];
+    const step = p.notes ? p.notes[index].semis : tune[index % tune.length];
     for (const v of voices) {
       let phase = 0, subPhase = 0, purrLow = 0;
       const subFreq = (base * v.ratio * Math.pow(2, step / 12)) / 2;

@@ -36,3 +36,16 @@ app exists. Game lab: own nest.js, voice.js and style.css.
   rule), then announced with a count: easy eater (8+ loved/liked, ~25% of
   eggs), strong opinions (~48%), picky (4 or fewer, ~26%). Judged from actual
   tastes, so old saves work. Real game: inherited.
+- Version 4 (2026-11-24): humming (his pick for next). hum.js: 7 s mic
+  capture after a rising beep (fixed length, so no tap needed mid-hum and
+  VoiceOver isn't talking into the mic), voice processing OFF, YIN pitch
+  every 25 ms, split into notes on silence or a lasting semitone jump, max 8
+  notes, audio never kept. audioSession set to play-and-record while
+  listening, back to playback after (else iPhone plays through the earpiece).
+  Tune book in its own key `sound-lab:nest:tunes`, survives Start over.
+  Lessons: off-note chance 0.6 x 0.75^(lessons-1), learned under 8% (lesson
+  8); four mistake kinds; sleepy after 3 lessons until "come back later".
+  His idea: happy calls (loved/liked food, happy cuddles, happy "How is")
+  end with the first 4 notes of a taught tune 25% of the time, as roughly
+  as currently known. Verified with a fake-microphone Twinkle in Edge and
+  synthetic hums (breathy, off-key, fast, high and low voices).

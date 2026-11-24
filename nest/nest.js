@@ -4,9 +4,10 @@
 // Design: Blake's (projects/tuneling-nest/IDEAS.md). Voice ported from Tunelings.
 
 import { SAMPLE_RATE, TIMBRES, RHYTHMS, CONTOURS, MELODIES, PHRASINGS,
-         renderCall, renderSpit, renderHuff, renderCrack } from './voice.js?v=1';
+         renderCall, renderSpit, renderHuff, renderCrack } from './voice.js?v=2';
+import { listen, trackToNotes } from './hum.js?v=1';
 
-const VERSION = 3;
+const VERSION = 4;
 const KEY = 'sound-lab:nest:v1';
 
 // weight: positive grows a bigger body and lower voice (meaty, rich foods);
@@ -159,10 +160,10 @@ const MOOD_VOICE = {
   cuddle: { pitch: 3, speed: 0.3, rhythm: 'pair', contour: 'arch' },
 };
 
-function call(kind = S.mood || 'happy') {
+function call(kind = S.mood || 'happy', settingsOnly = false) {
   const g = S.genes, m = MOOD_VOICE[kind] || {};
   const semis = g.pitch - S.diet + (m.pitch || 0);
-  const samples = renderCall({
+  const settings = {
     base: 220 * Math.pow(2, semis / 12),
     speed: g.speed + (m.speed || 0),
     rhythm: m.rhythm || g.rhythm,
@@ -176,8 +177,10 @@ function call(kind = S.mood || 'happy') {
     purr: m.purr || g.purr,
     trill: g.trill,
     seed: g.seed,
-  });
-  return { samples, gain: m.gain || 1 };
+    gain: m.gain || 1,
+  };
+  if (settingsOnly) return settings;
+  return { samples: renderCall(settings), gain: settings.gain };
 }
 
 // ---- Words ----
@@ -260,6 +263,7 @@ function render() {
     $('listen').textContent = `How is ${nameOf()}?`;
     $('cuddle').textContent = `Cuddle ${nameOf()}`;
   }
+  refreshTunes();
   for (const f of FOODS) {
     const t = S.tried[f.id];
     $(`taste-${f.id}`).textContent = `${f.name}: ${t ? TASTE_WORDS[t] : 'not tried yet'}`;
@@ -277,6 +281,79 @@ function changes(before) {
   return out.join(' ');
 }
 const snapshot = () => ({ size: sizeWord(), bond: bondWord(), diet: S.diet });
+// ---- Songs ----
+// The tune book is shared by every Tuneling and survives Start over.
+const TUNES_KEY = 'sound-lab:nest:tunes';
+let tunes = [];
+try { tunes = JSON.parse(localStorage.getItem(TUNES_KEY)) || []; } catch { tunes = []; }
+const saveTunes = () => localStorage.setItem(TUNES_KEY, JSON.stringify(tunes));
+const HUM_SECONDS = 7;
+const LESSONS_PER_VISIT = 3;   // then sleepy until you come back
+const SONG_CHANCE = 0.25;      // how often a happy call ends with a bit of a tune
+
+// Off-note chance: 60% on the first lesson, shrinking steadily (Blake's rule).
+const offChance = lessons => 0.6 * Math.pow(0.75, Math.max(0, lessons - 1));
+const learned = lessons => offChance(lessons) < 0.08;
+const lessonsOf = tune => (S.songs || {})[tune.id] || 0;
+
+// A sung attempt: every note may go wrong in one of four ways.
+function attempt(notes, off) {
+  const out = [];
+  notes.forEach((nt, i) => {
+    if (Math.random() >= off) { out.push({ ...nt }); return; }
+    const r = Math.random();
+    if (r < 0.35) out.push({ ...nt, semis: nt.semis + (Math.random() < 0.5 ? -1 : 1) * (0.4 + Math.random() * 0.25) }); // sharp or flat
+    else if (r < 0.65) out.push({ ...nt, semis: nt.semis + (Math.random() < 0.5 ? -1 : 1) * (2 + Math.floor(Math.random() * 3)) }); // wrong note
+    else if (r < 0.8 && notes.length > 2 && i > 0) { /* dropped */ }
+    else out.push({ ...nt, length: Math.min(1.4, nt.length * 1.8) }); // held too long
+  });
+  return out.length ? out : [{ ...notes[0] }];
+}
+
+// The tune in this Tuneling's own voice, centred on its pitch.
+function sing(notes, mood = S.mood || 'happy') {
+  const mean = notes.reduce((a, n) => a + n.semis, 0) / notes.length;
+  const shift = -Math.round(mean);
+  const base = call(mood, true);
+  return { samples: renderCall({ ...base, contour: 'flat', notes: notes.map(n => ({ ...n, semis: n.semis + shift })) }), gain: base.gain };
+}
+
+// The tune as you hummed it, in a plain soft tone, near where you hummed it.
+function plainTone(tune) {
+  let midi = tune.firstMidi;
+  while (midi < 57) midi += 12;
+  while (midi > 76) midi -= 12;
+  const base = 440 * Math.pow(2, (midi - 69) / 12);
+  let at = 0;
+  const total = tune.notes.reduce((a, n) => a + n.length + 0.05, 0) + 0.1;
+  const out = new Float32Array(Math.ceil(total * SAMPLE_RATE));
+  for (const n of tune.notes) {
+    const f = base * Math.pow(2, n.semis / 12), first = Math.floor(at * SAMPLE_RATE), count = Math.floor(n.length * SAMPLE_RATE);
+    for (let i = 0; i < count; i++) {
+      const t = i / SAMPLE_RATE;
+      const env = Math.min(1, t / 0.02) * Math.min(1, (n.length - t) / 0.05);
+      out[first + i] += 0.5 * env * (Math.sin(2 * Math.PI * f * t) + 0.15 * Math.sin(4 * Math.PI * f * t));
+    }
+    at += n.length + 0.05;
+  }
+  return { samples: out };
+}
+
+// Happy moments sometimes end with a bit of a tune it has been taught: the
+// first four notes, as well (or as badly) as it currently knows them.
+function withSong(clips, text) {
+  const known = tunes.filter(t => lessonsOf(t) > 0);
+  if (!known.length || Math.random() >= SONG_CHANCE) return [clips, text];
+  const tune = pick(known);
+  const bit = attempt(tune.notes.slice(0, 4), offChance(lessonsOf(tune)));
+  const how = learned(lessonsOf(tune)) ? 'hums the start of' : 'tries a wobbly bit of';
+  return [[...clips, { ...sing(bit, 'happy'), gap: 0.1 }], `${text} Then ${nameOf()} ${how} ${tune.name}.`];
+}
+function finishHappy(clips, text, before) {
+  const [c, t] = withSong(clips, text);
+  finish(c, t, before);
+}
+
 // VoiceOver jumps somewhere unpredictable when the control under its cursor
 // disappears. So when a step hides that control, focus moves to its new home
 // first and the page only hides the old one a moment later.
@@ -313,7 +390,8 @@ $('naming').addEventListener('submit', e => {
 
 $('listen').addEventListener('click', () => {
   const mood = S.mood || 'happy';
-  finish([call(mood)], fill(pick(MOOD_LINES[mood])));
+  const happy = ['happy', 'loving', 'excited', 'curious'].includes(mood);
+  (happy ? finishHappy : finish)([call(mood)], fill(pick(MOOD_LINES[mood])));
 });
 
 $('cuddle').addEventListener('click', () => {
@@ -326,7 +404,7 @@ $('cuddle').addEventListener('click', () => {
   }
   if (mood === 'grumpy') {
     S.mood = null; S.huffed = false; S.bond += 1;
-    finish([call('cuddle')], fill('{N} gives in and snuggles up. All forgiven.'), before);
+    finishHappy([call('cuddle')], fill('{N} gives in and snuggles up. All forgiven.'), before);
   } else if (mood === 'sad' || mood === 'scared') {
     S.mood = null; S.bond += 2;
     const line = mood === 'sad' ? '{N} snuggles into you, and the sadness melts away.' : '{N} burrows into your arms, and the trembling stops.';
@@ -336,16 +414,16 @@ $('cuddle').addEventListener('click', () => {
     finish([call('excited')], fill('{N} wriggles in your arms, far too excited to keep still.'), before);
   } else if (mood === 'loving') {
     S.bond += 1;
-    finish([call('loving')], fill('{N} purrs and melts into the cuddle.'), before);
+    finishHappy([call('loving')], fill('{N} purrs and melts into the cuddle.'), before);
   } else {
     S.bond += 1;
-    finish([call('cuddle')], fill(pick(['{N} chirps happily and nuzzles you.', '{N} snuggles in close.', '{N} squeaks and curls up in your hands.'])), before);
+    finishHappy([call('cuddle')], fill(pick(['{N} chirps happily and nuzzles you.', '{N} snuggles in close.', '{N} squeaks and curls up in your hands.'])), before);
   }
 });
 
 $('away').addEventListener('click', () => {
   const r = pick(RETURNS);
-  S.mood = r.mood; S.huffed = false;
+  S.mood = r.mood; S.huffed = false; S.lessonsThisVisit = 0;
   finish([call(r.mood || 'happy')], fill(r.line));
 });
 
@@ -387,7 +465,8 @@ function feed(food) {
       }
     }
   }
-  finish(clips, text, before);
+  if (taste === 'love' || taste === 'like') finishHappy(clips, text, before);
+  else finish(clips, text, before);
 }
 
 // Build food buttons and taste list once; afterwards only their text changes.
@@ -401,6 +480,112 @@ for (const f of FOODS) {
   $('tastes').append(li);
 }
 
+// ---- Humming and the tune book ----
+let heard = null;   // the last hummed tune, not yet saved
+let humming = false;
+
+$('hum').addEventListener('click', async () => {
+  if (humming) return;
+  humming = true;
+  startAudio();
+  // A rising beep says "go"; the first quarter second after it is ignored so
+  // the beep itself isn't heard as a note.
+  const beep = (f1, f2) => {
+    const len = Math.floor(0.18 * SAMPLE_RATE), out = new Float32Array(len);
+    for (let i = 0, ph = 0; i < len; i++) { const x = i / len; ph += 2 * Math.PI * (f1 + (f2 - f1) * x) / SAMPLE_RATE; out[i] = 0.4 * Math.sin(ph) * Math.sin(Math.PI * x); }
+    return { samples: out };
+  };
+  const secs = playSequence([beep(660, 990)]);
+  await new Promise(r => setTimeout(r, secs * 1000));
+  let result;
+  try {
+    result = await listen(ctx, HUM_SECONDS);
+  } catch (e) {
+    humming = false;
+    say('The microphone could not be used. Check that Safari is allowed to use it, then try again.');
+    return;
+  }
+  humming = false;
+  startAudio();
+  playSequence([beep(990, 660)]);
+  const { notes, firstMidi } = trackToNotes(result.track, result.hop);
+  window.__nest.lastTrack = result.track;
+  if (notes.length < 2) {
+    say("I couldn't hear a tune that time. Try humming a little louder, close to the phone, after the beep.");
+    return;
+  }
+  heard = { notes, firstMidi };
+  const playSecs = playSequence([{ samples: new Float32Array(Math.floor(0.4 * SAMPLE_RATE)) }, plainTone(heard)]);
+  $('heard').hidden = false;
+  $('tunename').focus();
+  say(`Here's what I heard: ${notes.length} notes. Name it and save it to the tune book, or hum again.`, playSecs);
+});
+
+$('replay').addEventListener('click', () => {
+  if (!heard) return;
+  playSequence([plainTone(heard)]);
+});
+
+function tuneButtonText(t) {
+  const n = lessonsOf(t);
+  const progress = !n ? 'not taught yet' : learned(n) ? 'learned' : `${n} lesson${n === 1 ? '' : 's'}`;
+  return `Sing ${t.name} to ${nameOf()}, ${progress}`;
+}
+function addTuneButton(t) {
+  const b = document.createElement('button');
+  b.id = `tune-${t.id}`;
+  b.textContent = tuneButtonText(t);
+  b.addEventListener('click', () => lesson(t));
+  $('tunebook').append(b);
+  return b;
+}
+function refreshTunes() {
+  for (const t of tunes) { const b = $(`tune-${t.id}`); if (b) b.textContent = tuneButtonText(t); }
+  $('notunes').hidden = tunes.length > 0;
+}
+
+$('savetune').addEventListener('click', () => {
+  if (!heard) return;
+  const name = $('tunename').value.trim().slice(0, 30);
+  if (!name) { say('Type a name for the tune first.'); return; }
+  const t = { id: Date.now().toString(36), name, notes: heard.notes, firstMidi: heard.firstMidi };
+  tunes.push(t); saveTunes();
+  heard = null;
+  const b = addTuneButton(t);
+  refreshTunes();
+  // Focus moves to the new tune's button first; the form hides a moment later.
+  b.focus();
+  setTimeout(() => { $('heard').hidden = true; $('tunename').value = ''; }, SETTLE_MS);
+  say(`${name} is in the tune book.`);
+});
+
+function lesson(t) {
+  S.songs = S.songs || {};
+  if ((S.lessonsThisVisit || 0) >= LESSONS_PER_VISIT) {
+    finish([call('sad')], fill(`{N} yawns a huge yawn. Too sleepy for another lesson. Leave and come back later, and {n} will remember where you left off.`));
+    return;
+  }
+  const before = lessonsOf(t);
+  if (learned(before)) {
+    finishHappy([plainTone(t), { ...sing(t.notes), gap: 0.2 }], fill(`{N} already knows ${t.name}, and sings it with you all the way through.`));
+    return;
+  }
+  const n = before + 1;
+  S.songs[t.id] = n;
+  S.lessonsThisVisit = (S.lessonsThisVisit || 0) + 1;
+  S.bond += 1;
+  const off = offChance(n);
+  const tried = attempt(t.notes, off);
+  let line;
+  if (learned(n)) line = `{N} has learned ${t.name}! They sing it all the way through, every note right. From now on it may turn up in their happy calls.`;
+  else if (off > 0.45) line = `{N} listens closely, then tries ${t.name}. Lots of wrong notes, but they're trying so hard.`;
+  else if (off > 0.25) line = `{N} sings ${t.name} back. Getting there, with a few wrong notes.`;
+  else line = `{N} sings ${t.name} back, and it's nearly right.`;
+  const clips = [plainTone(t), { samples: new Float32Array(Math.floor(0.3 * SAMPLE_RATE)) }, sing(learned(n) ? t.notes : tried)];
+  finish(clips, fill(line));
+  refreshTunes();
+}
+
 $('reset').addEventListener('click', () => {
   if (!confirm('Start over with a new egg? Your Tuneling and everything you learned about them will be gone.')) return;
   S = newTuneling();
@@ -409,5 +594,7 @@ $('reset').addEventListener('click', () => {
   setTimeout(() => $('hatch').focus(), 100);
 });
 
-window.__nest = { get S() { return S; }, FOODS, VERSION, lastSeconds: 0 };
+window.__nest = { get S() { return S; }, get tunes() { return tunes; }, FOODS, VERSION, lastSeconds: 0, offChance, attempt, trackToNotes };
+for (const t of tunes) addTuneButton(t);
+refreshTunes();
 render();

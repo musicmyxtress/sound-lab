@@ -31,6 +31,18 @@
 
 <h2>Food</h2>
 <div id="foods"></div>
+
+<h2>Songs</h2>
+<button id="hum">Hum a tune: starts after the beep, listens for 7 seconds</button>
+<div id="heard" hidden>
+<button id="replay">Play back what I heard</button>
+<label for="tunename">Name this tune</label>
+<input id="tunename" type="text" autocomplete="off" maxlength="30">
+<button id="savetune">Save to the tune book</button>
+</div>
+<h3>Tune book</h3>
+<p id="notunes">No tunes yet. Hum one, then save it here.</p>
+<div id="tunebook"></div>
 </section>
 
 <h2>Tastes found so far</h2>
@@ -43,9 +55,14 @@ and you only find out by feeding it. Loved and liked foods cheer it up and bring
 you closer. Disliked food gets eaten, grumpily. Hated food gets spat out.
 Meaty foods slowly make it bigger with a lower voice; carrots and fruit make it
 smaller and higher. "Leave and come back later" pretends time has passed.</p>
+<p class="small">Songs: hum a tune after the beep and the page picks out the notes
+(the recording itself is never kept). Save it to the tune book, then sing it to
+your Tuneling. Each lesson they get it a little more right; three lessons and
+they're sleepy until you come back. Tunes they've been taught sometimes turn up
+at the end of happy calls.</p>
 <button id="reset">Start over with a new egg</button>
 </main>
 <div id="say" class="sr-only" aria-live="polite"></div>
-<script type="module" src="nest.js?v=3"></script>
+<script type="module" src="nest.js?v=4"></script>
 </body>
 </html>

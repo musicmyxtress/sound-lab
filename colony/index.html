@@ -11,7 +11,7 @@
 <main>
 
 <section class="screen" id="menu">
-  <h1 tabindex="-1">Colony lab, version 16</h1>
+  <h1 tabindex="-1">Colony lab, version 17</h1>
   <p id="menuMoney"></p>
   <p id="menuColony"></p>
   <button id="goExplore">Explore this planet</button>
@@ -33,6 +33,11 @@
 
 <section class="screen" id="field" hidden>
   <h2 tabindex="-1" id="fieldTitle"></h2>
+  <div id="encounter" hidden>
+    <p id="encText" tabindex="-1"></p>
+    <button id="encYes"></button>
+    <button id="encNo"></button>
+  </div>
   <div data-modes="tilt compass" hidden><button id="recenter">Recenter</button></div>
   <div id="pad" data-modes="hold compass" hidden role="button" tabindex="0" aria-label="Movement pad">Movement pad</div>
   <div data-modes="steps" hidden>
@@ -95,6 +100,7 @@
 
 <div id="say" class="sr-only" aria-live="polite"></div>
 </main>
-<script src="colony.js?v=16"></script>
+<script src="aliens.js?v=17"></script>
+<script src="colony.js?v=17"></script>
 </body>
 </html>

@@ -144,3 +144,27 @@ copies the chase field code; control schemes are described in
   difference than other materials (all low sounds only 2-6 dB at full
   side). Suspect two same-material items blurring into one sound; the log
   will show it.
+
+## Alien civilizations (v17, Blake's design)
+
+- Settlements in the field: CIV_CHANCE 0.2 per chunk (about 1 in 5), fixed
+  per planet, plus a guaranteed one in chunk 1,0 near the landing spot.
+- One sound for every settlement on every planet (Blake's rule): a
+  wavering three-voice choir chord through vowel-like filters, every 2.6 s,
+  louder than materials and heard to 150 m (materials 90 m). Never a
+  single hit, so it can't be mistaken for a material.
+- Walk within 4 m: the mech stops and an encounter panel opens in the field
+  (VoiceOver focus goes to its text). Kinds, weights PLACEHOLDER:
+  - Friendly (35): asks 3-6 of one material, gives 10-20 of a material of
+    another type or 20-60 credits. Saying no or being short keeps it for
+    later; it won't reopen until you walk 10 m away.
+  - Hostile (20): takes 30% (at least 1) of one random thing in stock.
+  - Frightened (15): doors lock, no one speaks.
+  - Ruins (30): Investigate or Leave for now. 75% find an artifact of a
+    random type, 10-25 of that type's material, worded "a statue of" +
+    an alien description; otherwise only dust.
+- Hostile, frightened, traded and investigated settlements go quiet for good
+  (colony.field.civs). Words live in aliens.js: 50 alien descriptions that
+  fit both people and figurines, plus 4 artifact forms per material type.
+- The playthrough log records ENCOUNTER and ENCOUNTER RESULT lines, and
+  settlements in range with their kind.

@@ -1,0 +1,66 @@
+// Colony lab: alien civilizations' words (v17).
+// Each description is a noun phrase that works both for a living person
+// ("Out of the settlement comes ...") and for a figure in ruins ("a statue
+// of ..."). Add more freely; any line here can turn up on any planet.
+'use strict';
+
+const ALIENS = [
+  'an insectoid creature standing on two legs and raising its front pincers to the sky',
+  'a tall, thin being with three eyes set in a triangle and fingers that bend both ways',
+  'a squat, six-legged creature whose back is covered in glassy, chiming spines',
+  'a jellyfish-like being drifting a hand\'s width above the ground, trailing ribbons of light',
+  'a creature like a heron made of polished stone, balanced on one jointed leg',
+  'a furry, round-bodied being with ears longer than its arms',
+  'a slender figure with a long neck that coils like a spring when it listens',
+  'a creature with a shell like a spiral staircase and four soft, curious eyestalks',
+  'a crowd of tiny beings riding on the back of a larger one, all facing the same way',
+  'a being whose face is a smooth mirror, showing you your own giant mech',
+  'a many-armed creature holding a different tool in every hand',
+  'a moth-winged figure folding and unfolding its dusty wings like a fan',
+  'a creature shaped like a walking tree stump, with moss for hair',
+  'a crystalline being that rings softly whenever it moves',
+  'a lizard-like figure with a frilled collar it spreads wide to greet strangers',
+  'a being made of slowly shifting sand, held together by a woven belt',
+  'a creature with two heads, one always asleep while the other keeps watch',
+  'a beetle-like figure with a domed back painted in careful spirals',
+  'a long-tailed being that balances on its tail like a kangaroo, arms folded',
+  'a cloaked figure with no visible face, only a single glowing slit',
+  'a soft, jelly-bodied creature carrying its eggs in a pouch on its chest',
+  'a creature with eight spindly legs and a tiny, elegant hat',
+  'a feathered being whose crest changes colour with its mood',
+  'a figure carved entirely of hexagons, like a living honeycomb',
+  'a slug-like creature leaving a trail of glowing script behind it',
+  'a hulking, gentle-looking being with arms that drag on the ground',
+  'a creature with a long trunk that ends in three delicate fingers',
+  'a being that is mostly mouth, smiling enormously',
+  'a figure with antlers that branch into tiny hands',
+  'a translucent creature with its organs arranged like jewels',
+  'a mantis-like being kneeling with its forelegs pressed together',
+  'a being covered in overlapping scales like the tiles of a roof',
+  'an otter-like creature with webbed hands and a satchel of smooth pebbles',
+  'a creature that walks on its hands, its feet held up like a crown',
+  'a stocky, armoured figure with a single horn curling forward from its brow',
+  'a being of drifting smoke shaped loosely like a person',
+  'a spider-like creature with a human-like face and a calm expression',
+  'a creature whose body is a cluster of floating spheres, orbiting a central eye',
+  'a figure with wings too small to fly, held proudly open anyway',
+  'a fungal being with a broad cap and gills that flutter when it speaks',
+  'a centipede-like creature coiled upright like a question mark',
+  'a being with a lantern hanging from a stalk on its forehead',
+  'a creature with a beak like a pair of scissors and bright, round eyes',
+  'a stout, frog-like being with a throat sac that glows as it sings',
+  'a figure with four arms, two folded in prayer and two holding a bowl',
+  'a creature made of woven reeds, rustling as it moves',
+  'a long, eel-like being that stands upright on a coil of its own body',
+  'a tortoise-like figure carrying a tiny house on its shell',
+  'a being with eyes all around its head, so it never needs to turn',
+  'a willowy creature with hair like hanging vines, swaying though there is no wind',
+];
+
+// Ruin finds: what the thing is, and which type of material it gives.
+const ARTIFACTS = {
+  metal: ['a statue of', 'an iron idol of', 'a bronze medallion stamped with', 'a tarnished metal figurine of'],
+  stone: ['a weathered stone carving of', 'a stone tablet showing', 'a polished stone figurine of', 'a granite pillar carved with'],
+  wood:  ['a carved wooden totem of', 'a wooden puppet of', 'a wooden staff topped with a carving of', 'a painted wooden screen showing'],
+  fiber: ['a long, flowing robe embroidered with', 'a woven tapestry showing', 'a rope doll of', 'a silk banner painted with'],
+};

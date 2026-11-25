@@ -656,7 +656,7 @@ function logSnapshot(turn, speed) {
     const fwd = rx * Math.sin(h) + ry * Math.cos(h), right = rx * Math.cos(h) - ry * Math.sin(h);
     const ang = Math.round(Math.atan2(right, fwd) * 180 / Math.PI);
     const dir = ang === 0 ? 'ahead' : Math.abs(ang) > 90 ? `${180 - Math.abs(ang)} ${ang < 0 ? 'left' : 'right'} of behind` : `${Math.abs(ang)} ${ang < 0 ? 'left' : 'right'}`;
-    return { dist, text: `${A.it.mat.name} (${A.it.mat.type}, item ${A.it.key}) ${dist.toFixed(1)} m, ${dir}` };
+    return { dist, text: `${A.it.civ ? `alien settlement (${A.it.kind}, ${A.it.key})` : `${A.it.mat.name} (${A.it.mat.type}, item ${A.it.key})`} ${dist.toFixed(1)} m, ${dir}` };
   }).sort((a, b) => a.dist - b.dist).slice(0, 8).map(x => x.text);
   const t = Math.round(turn);
   const line = `at ${S.x.toFixed(1)},${S.y.toFixed(1)} facing ${Math.round(S.h)}, ${t ? `turning ${t < 0 ? 'left' : 'right'} ${Math.abs(t)} deg/s` : 'straight'}, ${speed > 0 ? 'walking' : speed < 0 ? 'backing' : 'standing'} | ${heard.join('; ') || 'nothing in range'}`;
@@ -759,7 +759,7 @@ async function enterField() {
   $('fieldTitle').textContent = `${c.planet.name} surface`;
   S.x = c.field.x; S.y = c.field.y; S.h = c.field.h; S.running = true;
   logLine(`ENTER FIELD on ${c.planet.name}, controls ${S.mode}, reach arm ${G.upgrades.reach || 0}, richness ${richLevel}`);
-  chunkCache.clear();
+  chunkCache.clear(); civCache.clear(); ENC = null; civIgnore = null; $('encounter').hidden = true;
   recenter();
   stream();
   // Not awaited: the sounds must not wait on the screen-awake request.
@@ -778,15 +778,138 @@ function stopField() {
 }
 
 // Start sounds that came into range; stop ones that went out of it.
+// ---------- alien civilizations (v17, Blake's design) ----------
+// About one settlement every few chunks, fixed per planet, plus one next to
+// the landing spot. Every settlement on every planet makes the same sound: a
+// wavering choir chord, unlike any material's single hit, louder and heard
+// further. Four kinds: friendly (trade), hostile (takes something),
+// frightened (doors lock), ruins (investigate for a find). Words: aliens.js.
+const CIV_CHANCE = 0.2, CIV_HEAR = 150, CIV_REACH = 4, CIV_GAP = 2.6; // PLACEHOLDER
+const CIV_KINDS = [['friendly', 35], ['ruins', 30], ['hostile', 20], ['frightened', 15]]; // PLACEHOLDER weights
+const RUIN_FIND_CHANCE = 0.75; // PLACEHOLDER
+const civCache = new Map();
+function chunkCiv(c, cx, cy) {
+  const k = `${cx},${cy}`;
+  if (civCache.has(k)) return civCache.get(k);
+  const r = rng(mix(c.planet.seed, cx, cy, 7777));
+  let civ = null;
+  if ((cx === 1 && cy === 0) || r() < CIV_CHANCE) {
+    let roll = r() * 100, kind = 'friendly';
+    for (const [kk, w] of CIV_KINDS) { roll -= w; if (roll < 0) { kind = kk; break; } }
+    const mats = c.planet.materials;
+    const want = pick(r, mats), others = mats.filter(m => m.type !== want.type);
+    civ = {
+      civ: true, key: 'civ:' + k, chunk: k, kind,
+      x: (cx + 0.15 + r() * 0.7) * CHUNK, y: (cy + 0.15 + r() * 0.7) * CHUNK,
+      who: pick(r, ALIENS),
+      want: want.id, wantN: 3 + Math.floor(r() * 4),                       // asks for 3-6
+      give: r() < 0.6 ? pick(r, others).id : 'credits',
+      giveN: 0, findType: pick(r, ['metal', 'stone', 'wood', 'fiber']), findForm: 0, findN: 10 + Math.floor(r() * 16),
+      found: r() < RUIN_FIND_CHANCE, takeRoll: r(),
+    };
+    civ.giveN = civ.give === 'credits' ? 20 + Math.floor(r() * 41) : 10 + Math.floor(r() * 11); // 20-60 credits or 10-20 material
+    civ.findForm = Math.floor(r() * 4);
+  }
+  civCache.set(k, civ);
+  return civ;
+}
+function playCiv(out, t) { // the alien choir: three wavering voices through vowel-like filters
+  const g = ctx.createGain();
+  g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.5, t + 0.35);
+  g.gain.setValueAtTime(0.5, t + 0.8); g.gain.exponentialRampToValueAtTime(0.0001, t + 1.6);
+  const f1 = filt('bandpass', 850, 3, g), f2 = filt('bandpass', 2300, 5, g);
+  const lfo = ctx.createOscillator(); lfo.frequency.value = 5.5;
+  const depth = ctx.createGain(); depth.gain.value = 9; lfo.connect(depth);
+  lfo.start(t); lfo.stop(t + 1.7);
+  for (const f of [233, 294, 349]) {
+    const o = ctx.createOscillator(); o.type = 'sawtooth';
+    o.frequency.setValueAtTime(f * 0.94, t); o.frequency.exponentialRampToValueAtTime(f, t + 0.4);
+    depth.connect(o.frequency); o.connect(f1); o.connect(f2);
+    o.start(t); o.stop(t + 1.7);
+  }
+  g.connect(out);
+}
+const matName = (c, id) => c.planet.materials.find(m => m.id === id);
+const amountText = (c, id, n) => id === 'credits' ? `${n} credits` : `${n} ${matName(c, id).name} (${matName(c, id).type})`;
+
+// The encounter panel: movement stops, VoiceOver lands on the words.
+let ENC = null, civIgnore = null;
+function openEncounter(civ) {
+  const c = cur();
+  ENC = civ; hold = null;
+  let text, yes = null, no = 'Continue';
+  if (civ.kind === 'friendly') {
+    text = `An alien settlement. Out comes ${civ.who}. They chirp and hum and point at your mech's hold: they would like ${amountText(c, civ.want, civ.wantN)}, and offer ${amountText(c, civ.give, civ.giveN)} in return. You have ${c.stock[civ.want]} ${matName(c, civ.want).name}.`;
+    yes = `Trade ${civ.wantN} ${matName(c, civ.want).name} for ${civ.give === 'credits' ? civ.giveN + ' credits' : civ.giveN + ' ' + matName(c, civ.give).name}`;
+    no = 'No thanks';
+  } else if (civ.kind === 'hostile') {
+    const have = Object.keys(c.stock).filter(id => c.stock[id] > 0);
+    if (!have.length) text = `An alien settlement. Out charges ${civ.who}, with others close behind. They search your mech's hold, find it empty, and stalk off grumbling.`;
+    else {
+      const id = have[Math.floor(civ.takeRoll * have.length)];
+      const n = Math.min(c.stock[id], Math.max(1, Math.ceil(c.stock[id] * 0.3)));
+      c.stock[id] -= n; save();
+      const name = GOODS[id] ? goodName(id, n) : matName(c, id).name;
+      text = `An alien settlement. Out charges ${civ.who}, with others close behind. They swarm your mech's legs and carry off ${n} ${name} before you can stop them.`;
+    }
+    visitCiv(c, civ);
+  } else if (civ.kind === 'frightened') {
+    text = `An alien settlement. For a moment you glimpse ${civ.who}. Then shutters slam and doors bolt at the sight of your giant mech. No one will speak to you.`;
+    visitCiv(c, civ);
+  } else {
+    text = 'Ruins: broken walls, empty doorways and silence, the remnant of a once thriving civilization.';
+    yes = 'Investigate the ruins'; no = 'Leave them for now';
+  }
+  logLine(`ENCOUNTER ${civ.kind} ${civ.key}: ${text}`);
+  $('encText').textContent = text;
+  $('encYes').hidden = !yes; if (yes) $('encYes').textContent = yes;
+  $('encNo').textContent = no;
+  $('encounter').hidden = false;
+  setTimeout(() => { if (ENC === civ) $('encText').focus(); }, 100); // skip if already closed
+}
+function visitCiv(c, civ) { (c.field.civs ??= {})[civ.chunk] = true; save(); }
+function encounterYes() {
+  const c = cur(), civ = ENC; if (!civ) return;
+  let text;
+  if (civ.kind === 'friendly') {
+    if (c.stock[civ.want] < civ.wantN) return say(`You need ${civ.wantN - c.stock[civ.want]} more ${matName(c, civ.want).name}.`);
+    c.stock[civ.want] -= civ.wantN;
+    if (civ.give === 'credits') G.money += civ.giveN; else c.stock[civ.give] += civ.giveN;
+    text = `They take the ${matName(c, civ.want).name} with delighted clicks and load ${amountText(c, civ.give, civ.giveN)} into your hold.`;
+  } else {
+    const mat = c.planet.materials.find(m => m.type === civ.findType);
+    if (civ.found && mat) {
+      c.stock[mat.id] += civ.findN;
+      text = `Among the rubble you find ${ARTIFACTS[civ.findType][civ.findForm]} ${civ.who}. You gain ${civ.findN} ${mat.name} (${mat.type}).`;
+    } else text = 'You search the rubble carefully, but find only dust.';
+  }
+  visitCiv(c, civ);
+  logLine(`ENCOUNTER RESULT ${civ.key}: ${text}`);
+  $('encText').textContent = text;
+  $('encNo').textContent = 'Continue';
+  $('encNo').focus();                                   // move focus before hiding the button it was on
+  setTimeout(() => { $('encYes').hidden = true; }, 600);
+  say(text);
+}
+function closeEncounter() {
+  if (!ENC) return;
+  civIgnore = ENC.key; ENC = null;                       // don't reopen until you walk away
+  $('fieldMode').focus();
+  setTimeout(() => { $('encounter').hidden = true; }, 600);
+}
+$('encYes').addEventListener('click', encounterYes);
+$('encNo').addEventListener('click', closeEncounter);
+
 function stream() {
-  const c = cur(), got = c.field.collected, reach = Math.ceil(HEAR / CHUNK);
+  const c = cur(), got = c.field.collected, reach = Math.ceil(CIV_HEAR / CHUNK), civs = c.field.civs ?? {};
   const pcx = Math.floor(S.x / CHUNK), pcy = Math.floor(S.y / CHUNK);
   const near = new Set();
   for (let cx = pcx - reach; cx <= pcx + reach; cx++)
     for (let cy = pcy - reach; cy <= pcy + reach; cy++)
-      for (const it of chunkItems(c, cx, cy)) {
-        if (got[it.chunk]?.includes(it.i)) continue;
-        if (Math.hypot(it.x - S.x, it.y - S.y) > HEAR) continue;
+      for (const it of [...chunkItems(c, cx, cy), chunkCiv(c, cx, cy)]) {
+        if (!it) continue;
+        if (it.civ ? civs[it.chunk] : got[it.chunk]?.includes(it.i)) continue;
+        if (Math.hypot(it.x - S.x, it.y - S.y) > (it.civ ? CIV_HEAR : HEAR)) continue;
         near.add(it.key);
         if (!active.has(it.key)) {
           const out = ctx.createGain(); out.gain.value = 0; out.connect(master);
@@ -806,7 +929,10 @@ function updateTargets() {
     const T = A.it, rx = T.x - S.x, ry = T.y - S.y, dist = Math.hypot(rx, ry);
     const fwd = rx * Math.sin(h) + ry * Math.cos(h), right = rx * Math.cos(h) - ry * Math.sin(h);
     const offAhead = Math.abs(Math.atan2(right, fwd)) * 180 / Math.PI;
-    if (dist < reachNow()) { collect(A); continue; }
+    if (T.civ) {
+      if (civIgnore === T.key && dist > CIV_REACH * 2.5) civIgnore = null;
+      if (!ENC && civIgnore !== T.key && dist < CIV_REACH) openEncounter(T);
+    } else if (dist < reachNow()) { collect(A); continue; }
     A.panner.positionX.setTargetAtTime(right, now, 0.03);
     A.panner.positionY.setTargetAtTime(0, now, 0.03);
     A.panner.positionZ.setTargetAtTime(-fwd, now, 0.03);
@@ -814,7 +940,8 @@ function updateTargets() {
     const ahead = fwd > 0 && offAhead < AHEAD;
     if (ahead && !A.ahead) aheadCue();
     A.ahead = ahead;
-    A.out.gain.setTargetAtTime(Math.max(0, 1 - dist / HEAR), now, 0.1);     // fades to silence at the edge
+    A.out.gain.setTargetAtTime(Math.max(0, 1 - dist / (T.civ ? CIV_HEAR : HEAR)) * (T.civ ? 1.6 : 1), now, 0.1); // fades to silence at the edge
+    if (T.civ) { while (A.nextPing < now + 0.15) { playCiv(A.lp, Math.max(A.nextPing, now)); A.nextPing += CIV_GAP; } continue; }
     const gap = Math.min(1.4, 0.5 + dist / 60) * A.rate; // faster as you close in
     while (A.nextPing < now + 0.15) { playMat(T.mat.sound, A.lp, Math.max(A.nextPing, now)); A.nextPing += gap; }
   }
@@ -898,8 +1025,8 @@ function stepper(sl, act) {
     sl.setAttribute('aria-valuetext', act(v === 2 ? 1 : -1)); sl.value = 1;
   });
 }
-const doStep = d => { stepAcc = STRIDE; moveBy(d * STEP); updateTargets(); return d > 0 ? 'Forward' : 'Back'; };
-const doTurn = d => { turnBy(d * STEP_TURN); updateTargets(); logLine(`STEP TURN ${d > 0 ? 'right' : 'left'} 30`); return d > 0 ? 'Right' : 'Left'; };
+const doStep = d => { if (ENC) return 'Busy'; stepAcc = STRIDE; moveBy(d * STEP); updateTargets(); return d > 0 ? 'Forward' : 'Back'; };
+const doTurn = d => { if (ENC) return 'Busy'; turnBy(d * STEP_TURN); updateTargets(); logLine(`STEP TURN ${d > 0 ? 'right' : 'left'} 30`); return d > 0 ? 'Right' : 'Left'; };
 stepper($('walkSlider'), doStep);
 stepper($('turnSlider'), doTurn);
 $('stepFwd').addEventListener('click', () => S.running && doStep(1));
@@ -911,7 +1038,8 @@ function frame(now) {
   if (!S.running) return;
   const dt = Math.min(0.1, (now - last) / 1000); last = now;
   let turn = 0, speed = 0;
-  if (S.mode === 'tilt') {
+  if (ENC) { /* encounter open: the mech stands still */ }
+  else if (S.mode === 'tilt') {
     turn = ease(curve(orient.gamma - neutral.gamma, TILT_STRAIGHT, TILT_FULL)) * MAX_TURN;
     const fb = curve(neutral.beta - orient.beta, 6, 25);
     speed = fb > 0 ? fb * WALK : fb * BACK;
@@ -923,7 +1051,8 @@ function frame(now) {
   const steering = S.mode === 'tilt' || (S.mode === 'hold' && hold);
   if (steering && wasTurning && !turn) straightCue();
   wasTurning = steering && !!turn;
-  if (S.mode === 'compass' && orient.compass != null) {
+  if (ENC) {}
+  else if (S.mode === 'compass' && orient.compass != null) {
     const diff = ((orient.compass - neutral.compass - S.h) % 360 + 540) % 360 - 180;
     turnBy(diff * Math.min(1, dt * 8));
   } else if (turn) turnBy(turn * dt);
